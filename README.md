@@ -36,6 +36,12 @@ amber on the list. The decline does not hide them.
 - **Sunday:** callings presented in a quorum or Young Women meeting are listed separately from
   sacrament meeting business.
 
+**Bishopric list (Settings).** The people who can be assigned steps, with their initials, name and
+role. It's saved in the Sheet's Bishopric tab, so everyone shares one list. **Fill from org chart**
+adds the current bishop, counselors and executive secretary from the Callings tab; others can be
+added by hand. Once the list exists, "Your initials" and every "Who" box are menus of these names
+(plus "Stake"), and My tasks shows the name with the initials. Remove sets `active` = FALSE.
+
 The steps tracked for a call are: proposed → asked → accepted or declined → sustained → set apart
 and recorded in LCR (in either order). For a release: decided → member told → released in
 sacrament meeting → recorded in LCR. Asking, setting apart, recording in LCR and telling a member
@@ -130,6 +136,7 @@ it needs is missing, the app adds it when it loads.
 | Members | id, name ("Last, First"), gender, age, age_as_of, source, status (active/moved), notes, category (ask_soon/not_now/do_not_ask), category_until, moved_in, last_in_list |
 | Talks | id, date, date_estimated, member_id, member_name, name_as_shown, ward_member, source, entered_by, entered_at, notes, void |
 | Refusals | id, date, member_id, member_name, note, entered_by, entered_at, void |
+| Bishopric | id, initials, name, role, member_id, active |
 | Callings | id, member_id, member_name, organization, calling, proposed_on, extend_by, extended_on, accepted_on, declined_on, sustained_on, set_apart_by, set_apart_on, record_by, recorded_on, release_proposed_on, release_by, release_informed_on, released_on, release_record_by, release_recorded_on, source, notes, entered_by, entered_at, void |
 
 Each Callings row is one person in one calling, from proposal to release. A later step implies the

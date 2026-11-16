@@ -18,6 +18,8 @@ how to add a feature.
 - Find Sheet columns by header name, never by position. To change a row, find it by its `id`
   (`Store.update` re-reads the id column first), because the Sheet can be sorted by hand.
 - Don't delete rows. Mark mistakes with `void` = TRUE.
+- Names of real people, including the bishopric, belong in the Sheet (for example the Bishopric tab),
+  never in code or config.
 - Church guidance (organizations, who sustains and sets apart) lives in `js/features/callings-orgs.js`
   with the General Handbook section for each rule. Don't add rules from memory: read the handbook
   section first and cite it there.

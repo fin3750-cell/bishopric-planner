@@ -264,27 +264,28 @@ await page.getByLabel('Callings report text').fill([
   'Elders Quorum Secretary (1 Feb 2026/No)',
   'Firwood, Fay Temple Worker (6 Sep 2024/No)',
   'Newleaf, Nora Relief Society President (19 Jan 2025/Yes)',
+  'Arbor, Amy Bishop (28 Sep 2025/Yes)',
   'Nobody, Nils Primary Pianist (1 Mar 2026/No)',
   'Count: 5',
 ].join('\n'));
 await page.getByRole('button', { name: 'Check report' }).click();
 const lcr = await page.textContent('#view');
-assert.ok(lcr.includes('5 new callings to add'), lcr);
+assert.ok(lcr.includes('6 new callings to add'), lcr);
 assert.ok(lcr.includes('1 lines repeated across a page break'), lcr);
 assert.ok(lcr.includes('Name not found in Members'), lcr);
 assert.ok(!/\[object |\bnull\b|\bundefined\b/.test(lcr), lcr);
 await noSideScroll('lcr import preview');
 await page.getByRole('button', { name: 'Apply changes' }).click();
-await page.getByText('Callings report applied: 5 added, 0 updated').waitFor();
+await page.getByText('Callings report applied: 6 added, 0 updated').waitFor();
 await page.locator('#view .view-title', { hasText: 'Organization chart' }).waitFor();
 const imported = sheet.tabs.Callings.filter((r) => r[ch.indexOf('source')] && String(r[ch.indexOf('source')]).startsWith('LCR import'));
-assert.equal(imported.length, 5);
+assert.equal(imported.length, 6);
 const eqp = imported.find((r) => r[ch.indexOf('calling')] === 'Elders Quorum President');
 assert.equal(eqp[ch.indexOf('organization')], 'Elders Quorum');
 assert.equal(eqp[ch.indexOf('sustained_on')], serial('2025-06-29'));
 assert.equal(eqp[ch.indexOf('set_apart_on')], serial('2025-06-29'));
 assert.equal(eqp[ch.indexOf('recorded_on')], serial('2026-11-16'));
-step('LCR import: 5 added, page-break repeat and unknown name held back, dates and organization set');
+step('LCR import: 6 added, page-break repeat and unknown name held back, dates and organization set');
 
 // 16. Organization chart
 const chart = page.locator('#view');
@@ -303,6 +304,10 @@ step('org chart: positions with holders, "No one called", optional positions, ou
 // 17. Change a calling's organization on its page
 await box('Primary').getByRole('button', { name: /Cedar, Cora/ }).click();
 assert.ok((await page.textContent('#dlg')).includes('Called and set apart by: Bishop or an assigned counselor'));
+const dlgText = await page.textContent('#dlg');
+assert.ok(dlgText.includes('✓ Asked (date not recorded)') && dlgText.includes('✓ Accepted (date not recorded)'), dlgText);
+assert.equal(await stepRow('Set apart').getByRole('button', { name: 'Done' }).count(), 1);   // the report said not set apart
+if (SHOTS) { await page.locator('#dlg .sub', { hasText: 'Organization and calling' }).scrollIntoViewIfNeeded(); await page.screenshot({ path: `${SHOTS}/8-calling-edit.png` }); }
 await page.locator('#dlg').getByLabel('Organization').selectOption('Sunday School');
 await page.locator('#dlg').getByRole('button', { name: 'Save', exact: true }).click();
 await page.getByText('Saved').first().waitFor();
@@ -328,6 +333,50 @@ await go('Sunday', 'Sunday business');
 const sun = await page.textContent('#view');
 assert.ok(sun.includes('To sustain (0)') && sun.includes('In a quorum or Young Women meeting (1)') && sun.includes('quorum meeting'), sun);
 step('Sunday: an elders quorum teacher is listed for the quorum meeting, not sacrament meeting');
+
+// 19. Bishopric list: fill from the org chart, add someone by hand, pick your own initials
+await go('Settings');
+const bish = page.locator('#view section', { hasText: 'Bishopric list' });
+await bish.getByRole('button', { name: 'Fill from org chart (1)' }).click();
+await page.getByText('1 added').waitFor();
+assert.ok((await page.textContent('#view')).includes('AA Amy Arbor · Bishop'));
+await page.getByLabel('New initials').fill('ts');
+await page.getByLabel('New name').fill('Tess Sample');
+await page.getByLabel('New role').fill('First Counselor');
+await page.locator('#view').getByRole('button', { name: 'Add', exact: true }).click();
+await page.getByText('TS added').waitFor();
+const bh = sheet.tabs.Bishopric[0];
+assert.deepEqual(sheet.tabs.Bishopric.slice(1).map((r) => [r[bh.indexOf('initials')], r[bh.indexOf('name')], r[bh.indexOf('role')], r[bh.indexOf('active')]]),
+  [['AA', 'Amy Arbor', 'Bishop', true], ['TS', 'Tess Sample', 'First Counselor', true]]);
+assert.equal(await page.getByLabel('Your initials').inputValue(), 'TS');
+const opts = await page.getByLabel('Your initials').locator('option').allTextContents();
+assert.deepEqual(opts, ['Choose…', 'AA — Amy Arbor', 'TS — Tess Sample']);
+await noSideScroll('settings');
+const iniBox = await page.getByLabel('New initials').boundingBox();
+assert.ok(iniBox.height < 60, `initials box is ${iniBox.height}px tall`);
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/7-settings.png`, fullPage: true });
+step('Bishopric list: filled from the org chart (Bishop), person added by hand, saved in the Sheet');
+
+// 20. Menus of the list on My tasks and when proposing a calling
+await go('Callings', 'Organization chart');
+await go('My tasks');
+assert.ok((await page.textContent('#view')).includes('Assigned to TS (Tess Sample)'));
+await go('In progress', 'Calls and releases in progress');
+await page.getByRole('button', { name: 'Propose a calling' }).click();
+const whoOpts = await page.locator('#dlg').getByLabel('Who will ask').locator('option').allTextContents();
+assert.deepEqual(whoOpts, ['Unassigned', 'AA — Amy Arbor (Bishop)', 'TS — Tess Sample (First Counselor)', 'Stake']);
+await page.locator('#dlg').getByLabel('Member').fill('Dogwood, Dan');
+await page.locator('#dlg').getByLabel('Organization').fill('Sunday School');
+await page.locator('#dlg').getByLabel('Calling').fill('Sunday School Teacher');
+await page.locator('#dlg').getByLabel('Who will ask').selectOption('AA');
+await page.getByRole('button', { name: 'Add to In progress' }).click();
+await page.getByText('Proposed: Sunday School Teacher for Dogwood, Dan').waitFor();
+const ss = sheet.tabs.Callings.find((r) => r[ch.indexOf('calling')] === 'Sunday School Teacher');
+assert.equal(ss[ch.indexOf('extend_by')], 'AA');
+await page.locator('#view .card', { hasText: 'Dogwood, Dan' }).first().click();
+assert.equal(await stepRow('Asked').getByRole('combobox').inputValue(), 'AA');
+await page.locator('#dlg').evaluate((d) => d.close());
+step('"Who will ask" and step assignees are menus of the Bishopric list');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');

@@ -6,7 +6,7 @@ import { makeId, normName, isActive } from '../members.js';
 import { h, add, clear, field, select, busy, toast, openDialog } from '../ui.js';
 import {
   COLUMNS, DATE_COLUMNS, STEPS, STEP_ORDER, callingState, isCurrent, tenureMonths, formatTenure,
-  openTasks, myTasks, sundayBusiness, currentCallings, callingsFor, membersWithoutCalling,
+  openTasks, myTasks, sundayBusiness, currentCallings, callingsFor, membersWithoutCalling, bishopricFromCallings,
 } from './callings-logic.js';
 import { ORG_NAMES, organizationFor, sustainedIn, handbookFor, setApartByStake } from './callings-orgs.js';
 import { renderOrgChart } from './callings-orgchart.js';
@@ -35,6 +35,26 @@ function initialsList(ctx) {
   return uniq([ctx.settings.initials, ...all, ...talks].map((v) => String(v || '').toUpperCase()));
 }
 
+// Who does a step: a menu of the Bishopric list (Settings), or typed initials if the list is empty.
+// Either way the element has .value and fires "change".
+function whoControl(ctx, current, label) {
+  const cur = String(current || '').trim().toUpperCase();
+  const people = ctx.bishopric();
+  if (!people.length) {
+    return h('input', { type: 'text', value: cur, list: 'initials-list', maxlength: 6, placeholder: 'Who', 'aria-label': label, class: 'initials' });
+  }
+  const opts = [{ value: '', label: 'Unassigned' },
+    ...people.map((p) => ({ value: p.initials, label: `${p.initials} — ${p.name}${p.role ? ` (${p.role})` : ''}` }))];
+  if (cur && !opts.some((o) => o.value === cur)) opts.push({ value: cur, label: cur });
+  if (!opts.some((o) => o.value === 'STAKE')) opts.push({ value: 'STAKE', label: 'Stake' });
+  return select(opts, cur, { 'aria-label': label, class: 'who' });
+}
+
+function personName(ctx, initials) {
+  const p = ctx.bishopric().find((x) => x.initials === String(initials || '').toUpperCase());
+  return p ? p.name : '';
+}
+
 function sundayDefault(ctx) { return nextSunday(ctx.today()); }
 
 async function save(ctx, id, fields) {
@@ -54,7 +74,16 @@ export function openCalling(id, ctx) {
     const state = callingState(c);
     const tenure = tenureMonths(c, today);
     const rows = [];
+    // A later step implies the earlier ones (for example an imported calling that is already sustained).
+    const IMPLIED = {
+      proposed_on: ['extended_on', 'accepted_on', 'sustained_on'], extended_on: ['accepted_on', 'sustained_on'], accepted_on: ['sustained_on'],
+      release_proposed_on: ['release_informed_on', 'released_on', 'release_recorded_on'], release_informed_on: ['released_on', 'release_recorded_on'],
+      released_on: ['release_recorded_on'],
+    };
     const stepRow = (label, dateField, byField, defaultDate, extra) => {
+      if (!c[dateField] && (IMPLIED[dateField] || []).some((f) => c[f])) {
+        return h('li', { class: 'row step done' }, h('span', {}, h('strong', { text: `✓ ${label}` }), ' (date not recorded)'));
+      }
       if (c[dateField]) {
         const undo = h('button', { class: 'small secondary', text: 'Undo' });
         undo.addEventListener('click', () => {
@@ -62,7 +91,7 @@ export function openCalling(id, ctx) {
           busy(undo, async () => { await save(ctx, c.id, { [dateField]: '' }); reopen(); }).catch(() => {});
         });
         return h('li', { class: 'row step done' },
-          h('span', {}, h('strong', { text: `✓ ${label}` }), ` ${formatDate(c[dateField])}${byField && c[byField] ? ` · ${String(c[byField]).toUpperCase()}` : ''}`),
+          h('span', {}, h('strong', { text: `✓ ${label}` }), ` ${formatDate(c[dateField])}${byField && c[byField] ? ` · ${personName(ctx, c[byField]) || String(c[byField]).toUpperCase()}` : ''}`),
           undo);
       }
       const date = h('input', { type: 'date', value: defaultDate, 'aria-label': `${label} date` });
@@ -74,7 +103,7 @@ export function openCalling(id, ctx) {
       }).catch(() => {}));
       let by = null;
       if (byField) {
-        by = h('input', { type: 'text', value: String(c[byField] || '').toUpperCase(), list: 'initials-list', maxlength: 6, placeholder: 'Who', 'aria-label': `${label}: assigned to`, class: 'initials' });
+        by = whoControl(ctx, c[byField], `${label}: assigned to`);
         by.addEventListener('change', () => {
           save(ctx, c.id, { [byField]: by.value.trim().toUpperCase() })
             .then(() => { toast(by.value.trim() ? `Assigned to ${by.value.trim().toUpperCase()}` : 'Unassigned'); ctx.refresh(); })
@@ -166,7 +195,7 @@ export function proposeCalling(ctx, memberId) {
     const who = h('input', { type: 'text', list: 'member-list', value: preset ? preset.name : '', placeholder: 'Last, First', autocomplete: 'off', 'aria-label': 'Member' });
     const org = h('input', { type: 'text', list: 'org-list', placeholder: 'Organization', autocomplete: 'off', 'aria-label': 'Organization' });
     const calling = h('input', { type: 'text', list: 'calling-list', placeholder: 'Calling', autocomplete: 'off', 'aria-label': 'Calling' });
-    const by = h('input', { type: 'text', list: 'initials-list', maxlength: 6, placeholder: 'Initials', 'aria-label': 'Who will ask', class: 'initials' });
+    const by = whoControl(ctx, '', 'Who will ask');
     const notes = h('input', { type: 'text', placeholder: 'Note (optional)', 'aria-label': 'Note' });
     calling.addEventListener('change', () => { if (!org.value.trim()) org.value = organizationFor(calling.value).organization; });
     const create = h('button', { text: 'Add to In progress' });
@@ -185,7 +214,7 @@ export function proposeCalling(ctx, memberId) {
     const all = callings(ctx);
     return [
       field('Member', who), field('Organization', org), field('Calling', calling),
-      field('Who will ask?', by, 'Initials of the bishopric member who will extend the call.'),
+      field('Who will ask?', by, ctx.bishopric().length ? 'The bishopric member who will extend the call.' : 'Initials of the bishopric member who will extend the call. Add the bishopric list in Settings to choose from a menu.'),
       field('Note', notes), create,
       datalist('member-list', members.map((m) => m.name).sort((a, b) => a.localeCompare(b))),
       datalist('org-list', [...ORG_NAMES, ...uniq(all.map((c) => c.organization)).filter((o) => !ORG_NAMES.includes(o))]),
@@ -321,7 +350,7 @@ function renderTasks(root, ctx) {
   ];
   add(root,
     h('p', { class: 'hint', text: 'Steps someone has to do: ask, set apart, record in LCR, tell a member about a release. Assign them on each calling\'s page.' }),
-    me ? group(`Assigned to ${me}`, mine, 'Nothing assigned to you.', false) : null,
+    me ? group(`Assigned to ${me}${personName(ctx, me) ? ` (${personName(ctx, me)})` : ''}`, mine, 'Nothing assigned to you.', false) : null,
     group('Not assigned yet', unassigned, 'Every step has someone assigned.', false));
 }
 
@@ -377,4 +406,6 @@ export const callingsFeature = {
     { id: 'lcrimport', label: 'LCR import', title: 'Import the LCR callings report', render: (root, ctx) => renderLcrImport(root, ctx, { go: ctx.go }) },
   ],
   memberSections,
+  // Settings > Bishopric: suggest the ward's bishopric and executive secretary from current callings.
+  suggestBishopric: (ctx) => bishopricFromCallings(callings(ctx)),
 };
