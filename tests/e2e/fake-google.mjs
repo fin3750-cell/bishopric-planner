@@ -96,6 +96,7 @@ export function createFakeSheet(initialTabs) {
 // Replaces https://accounts.google.com/gsi/client with a script that "signs in" at once.
 export const FAKE_GIS = `
 window.google = { accounts: { oauth2: {
-  initTokenClient(cfg) { return { requestAccessToken() { setTimeout(() => cfg.callback({ access_token: 'fake-token', expires_in: 3600 }), 10); } }; },
+  initTokenClient(cfg) { return { requestAccessToken() { setTimeout(() => cfg.callback({ access_token: 'fake-token', expires_in: 3600, scope: cfg.scope }), 10); } }; },
+  hasGrantedAllScopes(resp, ...scopes) { return scopes.every((s) => String(resp.scope || '').split(' ').includes(s)); },
   revoke(_t, done) { if (done) done(); }
 } } };`;

@@ -55,6 +55,11 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
   Sheet. `.gitignore` blocks data files (CSV, XLSX, PDF, video), but still check before every commit.
 - **Who can see the data:** the Sheet's sharing settings decide that. Each person signs in with
   their own Google account, and the app reads and writes the Sheet as that person.
+- **What sign-in asks for:** permission for Google Sheets, plus the person's email address. The email
+  is used only to recognize who is signed in (matched against the Bishopric tab). If someone declines
+  it, they pick their initials in Settings instead.
+- **The Sheet's id is in `config.js`** (a public file). The id alone gives no access: Google only lets
+  accounts the Sheet is shared with open it.
 - **Nothing is stored on the device except settings:** the Sheet link, client ID, initials and
   look-back window. Member data is loaded from the Sheet each time the app opens and is not kept on
   the device. The service worker caches only the app's own files.
@@ -82,9 +87,14 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
 3. **GitHub Pages.** In the repository's settings, open **Pages**, set the source to **Deploy from a
    branch**, choose branch `main` and folder `/ (root)`, and save. The app will be at
    `https://fin3750-cell.github.io/bishopric-planner/`. A new version can take up to 10 minutes to appear.
-4. **On each phone.** Open the app's address. On **Settings**, paste the Sheet link (and the client
-   ID if `config.js` doesn't have it), add your initials, and save. Then choose **Sign in with
-   Google**. To install it, use Share → **Add to Home Screen** (iPhone) or **Install app** (Android).
+4. **On each phone.** Open the app's address and choose **Sign in with Google**. The Sheet and the
+   client ID are built into the app (`config.js`), so there is nothing to type.
+   - **The first time** someone signs in, the app asks **"Which one are you?"** and saves their Google
+     account on the Bishopric list. After that it recognizes them on any device and sets their
+     initials.
+   - **To install it,** use Share → **Add to Home Screen** (iPhone) or **Install app** (Android). On an
+     iPhone the home-screen app keeps its own storage, separate from Safari, so sign in from the
+     installed app.
 
 ## Using it
 
@@ -136,7 +146,7 @@ it needs is missing, the app adds it when it loads.
 | Members | id, name ("Last, First"), gender, age, age_as_of, source, status (active/moved), notes, category (ask_soon/not_now/do_not_ask), category_until, moved_in, last_in_list |
 | Talks | id, date, date_estimated, member_id, member_name, name_as_shown, ward_member, source, entered_by, entered_at, notes, void |
 | Refusals | id, date, member_id, member_name, note, entered_by, entered_at, void |
-| Bishopric | id, initials, name, role, member_id, active |
+| Bishopric | id, initials, name, role, member_id, active, email (Google account, linked at first sign-in) |
 | Callings | id, member_id, member_name, organization, calling, proposed_on, extend_by, extended_on, accepted_on, declined_on, sustained_on, set_apart_by, set_apart_on, record_by, recorded_on, release_proposed_on, release_by, release_informed_on, released_on, release_record_by, release_recorded_on, source, notes, entered_by, entered_at, void |
 
 Each Callings row is one person in one calling, from proposal to release. A later step implies the

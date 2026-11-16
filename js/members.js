@@ -154,3 +154,20 @@ export function makeId(prefix) {
   const rand = Math.floor(Math.random() * 36 ** 4).toString(36).padStart(4, '0');
   return `${prefix}${Date.now().toString(36)}${rand}`;
 }
+
+// Email addresses compared the way Gmail treats them: case and dots in a gmail.com name don't matter.
+export function normEmail(email) {
+  const e = String(email || '').trim().toLowerCase();
+  const at = e.lastIndexOf('@');
+  if (at < 0) return e;
+  const local = e.slice(0, at);
+  const domain = e.slice(at + 1);
+  return domain === 'gmail.com' || domain === 'googlemail.com' ? `${local.replace(/\./g, '')}@gmail.com` : e;
+}
+
+// The Bishopric list entry for a signed-in Google account, or null.
+export function bishopricForEmail(rows, email) {
+  const e = normEmail(email);
+  if (!e) return null;
+  return activeBishopric(rows).find((r) => normEmail(r.email) === e) || null;
+}
