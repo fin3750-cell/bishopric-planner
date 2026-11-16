@@ -159,3 +159,16 @@ test('import: new, just turned 8, missing, returned and ignored', () => {
   assert.deepEqual(d.missing.map((m) => m.id), ['g']);   // Will was added by hand, so not flagged
   assert.equal(d.ignoredYoung, 1);
 });
+
+test('email matching for the Bishopric list', async () => {
+  const { normEmail, bishopricForEmail } = await import('../js/members.js');
+  assert.equal(normEmail(' Tess.Sample@Gmail.com '), 'tesssample@gmail.com');
+  assert.equal(normEmail('t.s@example.org'), 't.s@example.org');          // dots only ignored for Gmail
+  const rows = [
+    { id: 'b1', initials: 'ts', name: 'Tess Sample', email: 'Tess.Sample@gmail.com', active: true },
+    { id: 'b2', initials: 'AA', name: 'Amy Arbor', email: 'amy@example.org', active: 'FALSE' },
+  ];
+  assert.equal(bishopricForEmail(rows, 'tesssample@gmail.com').initials, 'TS');
+  assert.equal(bishopricForEmail(rows, 'amy@example.org'), null);           // removed from the list
+  assert.equal(bishopricForEmail(rows, ''), null);
+});

@@ -3,11 +3,11 @@
 import { FEATURES } from './js/features/index.js';
 import { registerTables, Store } from './js/store.js';
 import { SheetsApi, AuthError } from './js/sheets.js';
-import { initAuth, signIn, signOut, currentToken } from './js/auth.js';
-import { loadSettings } from './js/settings.js';
-import { activeBishopric } from './js/members.js';
+import { initAuth, signIn, signOut, currentToken, signedInEmail } from './js/auth.js';
+import { loadSettings, saveSettings } from './js/settings.js';
+import { activeBishopric, bishopricForEmail } from './js/members.js';
 import { todayISO, addDays, nextSunday } from './js/dates.js';
-import { h, clear, toast } from './js/ui.js';
+import { h, clear, toast, openDialog, busy } from './js/ui.js';
 import { renderMembers, openMember } from './js/views/members.js';
 import { renderImport } from './js/views/import.js';
 import { renderSettings } from './js/views/settings.js';
@@ -24,7 +24,8 @@ const VIEWS = [
 ];
 const GROUPS = [...new Set(VIEWS.map((v) => v.group))];
 
-const state = { settings: loadSettings(), store: null, authReady: null, loading: false };
+// me: the signed-in Google account and, once matched, their Bishopric list entry.
+const state = { settings: loadSettings(), store: null, authReady: null, loading: false, me: { email: '', person: null } };
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -41,8 +42,10 @@ const ctx = {
   fail: (e) => handleError(e),
   signedIn: () => Boolean(state.store),
   bishopric: () => (state.store ? activeBishopric(state.store.records('Bishopric')) : []),
+  me: () => state.me,
+  askWhoYouAre: () => askWhoYouAre(),
   reload: () => loadData().catch(handleError),
-  signOut: () => { signOut(); state.store = null; toast('Signed out'); render(); },
+  signOut: () => { signOut(); state.store = null; state.me = { email: '', person: null }; toast('Signed out'); render(); },
   applySettings: (next) => {
     const changed = next.sheetId !== state.settings.sheetId || next.clientId !== state.settings.clientId;
     state.settings = next;
@@ -79,6 +82,49 @@ async function loadData() {
     state.loading = false;
     render();
   }
+  await identify();
+}
+
+// Recognize the signed-in person from their Google account. A match sets their initials on this
+// device. With no match yet, ask once which Bishopric list entry they are and save their account there.
+async function identify() {
+  const email = await signedInEmail();
+  state.me = { email, person: null };
+  if (!email || !state.store) return;
+  const person = bishopricForEmail(state.store.records('Bishopric'), email);
+  if (person) {
+    state.me.person = person;
+    if (state.settings.initials !== person.initials) {
+      state.settings = { ...state.settings, initials: person.initials };
+      saveSettings(state.settings);
+    }
+    render();
+    return;
+  }
+  if (ctx.bishopric().some((p) => !p.email)) askWhoYouAre();
+}
+
+function askWhoYouAre() {
+  const email = state.me.email;
+  if (!email || !state.store) return;
+  const unclaimed = ctx.bishopric().filter((p) => !p.email);
+  if (!unclaimed.length) { toast('Everyone on the Bishopric list already has a Google account saved.', 'error'); return; }
+  openDialog('Which one are you?', (close) => [
+    h('p', { text: `You are signed in as ${email}. Choose your name once; the app will recognize this Google account on any device after that.` }),
+    h('ul', { class: 'rows' }, unclaimed.map((p) => {
+      const b = h('button', { class: 'secondary', text: `${p.initials} — ${p.name}${p.role ? ` (${p.role})` : ''}` });
+      b.addEventListener('click', () => busy(b, async () => {
+        await state.store.update('Bishopric', [{ id: p.id, fields: { email } }]);
+        state.me.person = { ...p, email };
+        state.settings = { ...state.settings, initials: p.initials };
+        saveSettings(state.settings);
+        toast(`Welcome, ${p.name}`);
+        close(); render();
+      }).catch(() => {}));
+      return h('li', { class: 'row' }, b);
+    })),
+    h('button', { class: 'small secondary', text: 'Not now', onclick: close }),
+  ]);
 }
 
 async function doSignIn() {

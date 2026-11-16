@@ -9,8 +9,9 @@ how to add a feature.
 - **Never put member data in this repository:** no names, ages, talks or notes in code, tests,
   fixtures, commits, PR text or screenshots. Tests use made-up names only. The member list is
   "For Church Use Only".
-- The app runs in the browser and talks only to Google sign-in and the Google Sheets API. Do not add
-  analytics, CDNs, web fonts or other outside services.
+- The app runs in the browser and talks only to Google sign-in (including its userinfo endpoint, for
+  the signed-in email) and the Google Sheets API. Do not add analytics, CDNs, web fonts or other
+  outside services.
 - Keep it plain HTML, CSS and JavaScript modules: no framework, no build step, no npm dependencies.
   Use relative paths, because the site is served from `https://<user>.github.io/bishopric-planner/`.
 - Set text with `textContent` (the `h()` helper in `js/ui.js`), never `innerHTML`, because names

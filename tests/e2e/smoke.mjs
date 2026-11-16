@@ -60,7 +60,10 @@ page.on('dialog', (d) => d.accept());
 await page.clock.setFixedTime(new Date('2026-11-16T12:00:00'));
 await context.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: FAKE_GIS }));
 await context.route('https://sheets.googleapis.com/**', sheet.handle);
+let fakeEmail = 'tess.sample@gmail.com';   // the Google account the fake sign-in reports
+await context.route('https://www.googleapis.com/oauth2/v3/userinfo', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sub: '1', email: fakeEmail, email_verified: true }) }));
 await context.addInitScript(() => {
+  if (localStorage.getItem('bishopric-planner-settings')) return;   // keep what the app saved (reload tests)
   localStorage.setItem('bishopric-planner-settings', JSON.stringify({
     sheetId: 'fakeSheetId_1234567890abcdef', clientId: 'fake.apps.googleusercontent.com', initials: 'TS', windowYears: 3, minAge: 8,
   }));
@@ -377,6 +380,34 @@ await page.locator('#view .card', { hasText: 'Dogwood, Dan' }).first().click();
 assert.equal(await stepRow('Asked').getByRole('combobox').inputValue(), 'AA');
 await page.locator('#dlg').evaluate((d) => d.close());
 step('"Who will ask" and step assignees are menus of the Bishopric list');
+
+// 21. "Which one are you?" links the signed-in Google account to a Bishopric list entry
+await go('Settings');
+await page.locator('#view').getByRole('button', { name: 'Which one are you?' }).click();
+await page.locator('#dlg').getByRole('button', { name: 'TS — Tess Sample (First Counselor)' }).click();
+await page.getByText('Welcome, Tess Sample').waitFor();
+assert.equal(sheet.tabs.Bishopric.find((r) => r[bh.indexOf('initials')] === 'TS')[sheet.tabs.Bishopric[0].indexOf('email')], 'tess.sample@gmail.com');
+assert.ok((await page.textContent('#view')).includes('You: TS — Tess Sample (recognized from your Google account tess.sample@gmail.com)'));
+step('"Which one are you?" saved the Google account on the Bishopric list');
+
+// 22. A new phone: no settings at all. The Sheet and client ID are built in, and the person is
+//     recognized from their Google account (same Gmail address written without the dot).
+await page.evaluate(() => localStorage.setItem('bishopric-planner-settings', JSON.stringify({})));
+fakeEmail = 'TessSample@gmail.com';
+await page.reload();
+await page.locator('#view .view-title', { hasText: 'Settings' }).waitFor();
+assert.ok((await page.getByLabel('Sheet link').inputValue()).includes('/spreadsheets/d/'), 'Sheet link is built in');
+assert.ok(await page.getByLabel('Sheet link').isDisabled());
+await go('Speakers', 'Who to ask');
+await page.getByRole('button', { name: 'Sign in with Google' }).click({ timeout: 5000 })
+  .catch(async (e) => { throw new Error(`No sign-in button at ${page.url()}. Screen: ${await page.evaluate(() => document.body.innerText)}`); });
+await page.getByText('to consider').waitFor();
+await go('Settings');
+const fresh = await page.textContent('#view');
+assert.ok(fresh.includes('You: TS — Tess Sample'), fresh);
+assert.equal(await page.locator('#dlg[open]').count(), 0, 'no "Which one are you?" dialog for a known account');
+assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem('bishopric-planner-settings'))).initials, 'TS');
+step('new phone: nothing to set up; signed in and recognized as TS from the Google account');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');

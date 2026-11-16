@@ -13,7 +13,7 @@ const SCHEMA = {
   },
   // The people who can be assigned steps (initials used across the app).
   Bishopric: {
-    columns: ['id', 'initials', 'name', 'role', 'member_id', 'active'],
+    columns: ['id', 'initials', 'name', 'role', 'member_id', 'active', 'email'],
     dates: [],
   },
 };
