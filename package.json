@@ -1,0 +1,9 @@
+{
+  "name": "bishopric-planner",
+  "private": true,
+  "type": "module",
+  "description": "Bishopric planning PWA backed by a shared Google Sheet. No build step and no dependencies.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
