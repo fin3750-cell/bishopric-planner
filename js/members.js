@@ -7,7 +7,9 @@ export const CATEGORIES = [
   { value: '', label: 'None' },
   { value: 'ask_soon', label: 'Ask soon' },
   { value: 'not_now', label: 'Not now' },
-  { value: 'do_not_ask', label: 'Do not ask' },
+  // Stored as do_not_ask (its earlier name), shown as "Shouldn't ask".
+  { value: 'do_not_ask', label: "Shouldn't ask" },
+  { value: 'wont_accept', label: "Won't accept" },
 ];
 
 export const STATUSES = [

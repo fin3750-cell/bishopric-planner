@@ -2,8 +2,8 @@
 // a member's page. Uses the Talks and Refusals tabs of the Sheet.
 
 import { formatDate, formatMonth, nextSunday } from '../dates.js';
-import { makeId, isTrue } from '../members.js';
-import { h, clear, field, select, busy, toast } from '../ui.js';
+import { makeId, isTrue, categoryLabel } from '../members.js';
+import { h, add, clear, field, select, busy, toast } from '../ui.js';
 import { buildAskList, upcomingTalks, pastTalks, talksFor, refusalsFor } from './speakers-logic.js';
 
 const tables = {
@@ -32,31 +32,53 @@ function ageText(age, gender) {
 function renderAsk(root, ctx) {
   const listEl = h('ul', { class: 'cards', 'aria-live': 'polite' });
   const summaryEl = h('p', { class: 'summary' });
+  const othersEl = h('div', {});
+  const LEFT_OFF = {
+    recent: (o) => `Spoke ${formatDate(o.date)}, within ${ctx.settings.windowYears} years`,
+    scheduled: (o) => `Scheduled ${formatDate(o.date)}`,
+    notNow: (o) => (o.date ? `Not now, until ${formatDate(o.date)}` : 'Not now'),
+    moved: () => 'Moved',
+    young: () => `Under ${ctx.settings.minAge}`,
+  };
   const draw = () => {
     const res = buildAskList({
       members: ctx.store.records('Members'), talks: ctx.store.records('Talks'), refusals: ctx.store.records('Refusals'),
       today: ctx.today(), settings: ctx.settings, filters,
     });
     const hd = res.hidden;
-    clear(summaryEl).append(
-      h('strong', { text: `${res.rows.length} to consider` }),
-      ` · not listed: ${hd.recent} spoke since ${formatMonth(res.cutoff)}, ${hd.scheduled} scheduled, ${hd.notNow} not now, ${hd.doNotAsk} do not ask, ${hd.moved} moved`);
+    const main = res.rows.filter((r) => r.tier !== 3).length;
+    const bottom = res.rows.length - main;
+    add(clear(summaryEl),
+      h('strong', { text: `${main} to consider` }),
+      bottom ? ` · ${bottom} marked Shouldn't ask or Won't accept (at the bottom)` : '',
+      ` · not listed: ${hd.recent} spoke since ${formatMonth(res.cutoff)}, ${hd.scheduled} scheduled, ${hd.notNow} not now, ${hd.moved} moved`);
     clear(listEl);
-    if (!res.rows.length) listEl.append(h('li', { class: 'empty', text: 'No one matches these filters.' }));
+    if (!res.rows.length) listEl.append(h('li', { class: 'empty', text: res.others.length ? 'No one on the list matches.' : 'No one matches these filters.' }));
     for (const r of res.rows) {
       const m = r.member;
       const badges = [];
       if (r.askSoon) badges.push(h('span', { class: 'badge soon', text: 'Ask soon' }));
       if (r.isNew) badges.push(h('span', { class: 'badge new', text: 'New to ward' }));
       if (r.declined) badges.push(h('span', { class: 'badge declined', text: `Declined ${formatDate(r.declined)}` }));
+      if (r.bottom) badges.push(h('span', { class: `badge cat-${r.bottom}`, text: categoryLabel(r.bottom) }));
       listEl.append(h('li', {},
         h('button', {
-          class: `card${r.askSoon ? ' is-soon' : ''}${r.declined ? ' is-declined' : ''}`,
+          class: `card${r.askSoon ? ' is-soon' : ''}${r.declined ? ' is-declined' : ''}${r.bottom ? ' is-muted' : ''}`,
           onclick: () => ctx.openMember(m.id),
         },
         h('span', { class: 'card-top' }, h('span', { class: 'name', text: m.name }), badges),
         h('span', { class: 'meta', text: `${ageText(r.age, m.gender)} · ${lastTalkText(r)}` }),
         m.notes ? h('span', { class: 'note', text: m.notes }) : null)));
+    }
+    // While searching: matching people who are not on the list, with the reason, so they can still be scheduled.
+    clear(othersEl);
+    if (res.others.length) {
+      add(othersEl, h('h3', { class: 'date-head', text: `Also matching, not on the list (${res.others.length})` }),
+        h('ul', { class: 'cards' }, res.others.map((o) => h('li', {},
+          h('button', { class: 'card is-muted', onclick: () => ctx.openMember(o.member.id) },
+            h('span', { class: 'card-top' }, h('span', { class: 'name', text: o.member.name }),
+              o.member.category && o.member.category !== 'not_now' ? h('span', { class: `badge cat-${o.member.category}`, text: categoryLabel(o.member.category) }) : null),
+            h('span', { class: 'meta', text: `${ageText(o.age, o.member.gender)} · ${LEFT_OFF[o.reason](o)}` }))))));
     }
   };
   const search = h('input', { type: 'search', placeholder: 'Search name', value: filters.search, 'aria-label': 'Search name' });
@@ -67,8 +89,8 @@ function renderAsk(root, ctx) {
   gender.addEventListener('change', () => { filters.gender = gender.value; draw(); });
   root.append(
     h('div', { class: 'toolbar' }, search, group, gender),
-    h('p', { class: 'hint', text: `Listed: no talk in the last ${ctx.settings.windowYears} years. "Ask soon" first, then no talk on record, then longest since their last talk. Tap a name to schedule a talk or record a decline.` }),
-    summaryEl, listEl);
+    h('p', { class: 'hint', text: `Listed: no talk in the last ${ctx.settings.windowYears} years. "Ask soon" first, then no talk on record, then longest since their last talk; "Shouldn't ask" and "Won't accept" are last, grayed. Searching also finds people not on the list (for example someone who spoke recently). Tap a name to schedule a talk or record a decline.` }),
+    summaryEl, listEl, othersEl);
   draw();
 }
 

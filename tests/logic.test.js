@@ -49,7 +49,7 @@ test('ask list: who is left off, and why', () => {
     member('a', 'Alpha, Ann'),                                   // never spoke -> listed
     member('b', 'Bravo, Bea'),                                   // spoke 2025 -> hidden (recent)
     member('c', 'Charlie, Cal', { gender: 'M' }),                // spoke 2022 -> listed, tier 2
-    member('d', 'Delta, Dee', { category: 'do_not_ask' }),
+    member('d', 'Delta, Dee', { category: 'do_not_ask' }),          // "Shouldn't ask" -> bottom, grayed
     member('e', 'Echo, Eve', { category: 'not_now', category_until: '2027-01-01' }),
     member('f', 'Fox, Fay', { category: 'not_now', category_until: '2026-11-01' }), // expired -> listed
     member('g', 'Golf, Gus', { status: 'moved' }),
@@ -63,10 +63,13 @@ test('ask list: who is left off, and why', () => {
     { id: 't3', member_id: 'i', date: '2026-11-22' },
     { id: 't4', member_id: 'a', date: '2026-01-01', void: 'TRUE' },  // removed by mistake-fix
   ];
-  const { rows, hidden, cutoff } = buildAskList({ members, talks, refusals: [], today: TODAY, settings: { windowYears: 3 } });
+  const { rows, hidden, cutoff, others, bottomCount } = buildAskList({ members, talks, refusals: [], today: TODAY, settings: { windowYears: 3 } });
   assert.equal(cutoff, '2023-11-16');
-  assert.deepEqual(rows.map((r) => r.member.id), ['j', 'a', 'f', 'c']);
-  assert.deepEqual(hidden, { recent: 1, scheduled: 1, doNotAsk: 1, notNow: 1, moved: 1, young: 1 });
+  assert.deepEqual(rows.map((r) => r.member.id), ['j', 'a', 'f', 'c', 'd']);
+  assert.deepEqual(hidden, { recent: 1, scheduled: 1, notNow: 1, moved: 1, young: 1 });
+  assert.equal(rows.find((r) => r.member.id === 'd').bottom, 'do_not_ask');
+  assert.equal(bottomCount, 1);
+  assert.deepEqual(others, []);   // no search -> no "also matching" list
   const j = rows.find((r) => r.member.id === 'j');
   assert.equal(j.isNew, true);
   const c = rows.find((r) => r.member.id === 'c');
@@ -171,4 +174,36 @@ test('email matching for the Bishopric list', async () => {
   assert.equal(bishopricForEmail(rows, 'tesssample@gmail.com').initials, 'TS');
   assert.equal(bishopricForEmail(rows, 'amy@example.org'), null);           // removed from the list
   assert.equal(bishopricForEmail(rows, ''), null);
+});
+
+test('ask list: "Shouldn\'t ask" and "Won\'t accept" at the bottom; search shows people left off', () => {
+  const members = [
+    member('a', 'Alpha, Ann'),
+    member('w', 'Whiskey, Will', { category: 'wont_accept' }),             // no talk -> first of the bottom group
+    member('x', 'Xray, Xia', { category: 'do_not_ask' }),                   // old talk -> after Will
+    member('y', 'Yankee, Yul', { category: 'ask_soon' }),
+    member('r', 'Recent, Rae'),                                             // spoke this year -> off the list
+    member('s', 'Sched, Sam'),                                              // scheduled -> off the list
+    member('n', 'Nownot, Nia', { category: 'not_now', category_until: '2027-03-01' }),
+    member('m', 'Moved, Max', { status: 'moved' }),
+    member('rw', 'Recent, Wren', { category: 'wont_accept' }),              // spoke recently: the recent rule wins
+  ];
+  const talks = [
+    { id: '1', member_id: 'x', date: '2021-02-07' },
+    { id: '2', member_id: 'r', date: '2026-03-01' },
+    { id: '3', member_id: 's', date: '2026-11-22' },
+    { id: '4', member_id: 'rw', date: '2026-06-07' },
+  ];
+  const all = buildAskList({ members, talks, refusals: [], today: TODAY });
+  assert.deepEqual(all.rows.map((r) => [r.member.id, r.tier]), [['y', 0], ['a', 1], ['w', 3], ['x', 3]]);
+  assert.equal(all.bottomCount, 2);
+  const found = buildAskList({ members, talks, refusals: [], today: TODAY, filters: { search: 're' } });
+  assert.deepEqual(found.rows.map((r) => r.member.id), []);
+  assert.deepEqual(found.others.map((o) => [o.member.id, o.reason, o.date]), [['r', 'recent', '2026-03-01'], ['rw', 'recent', '2026-06-07']]);
+  const sched = buildAskList({ members, talks, refusals: [], today: TODAY, filters: { search: 'sched' } });
+  assert.deepEqual(sched.others.map((o) => [o.member.id, o.reason, o.date]), [['s', 'scheduled', '2026-11-22']]);
+  const moved = buildAskList({ members, talks, refusals: [], today: TODAY, filters: { search: 'max' } });
+  assert.deepEqual(moved.others.map((o) => [o.member.id, o.reason, o.date]), [['m', 'moved', '']]);
+  const nn = buildAskList({ members, talks, refusals: [], today: TODAY, filters: { search: 'nownot' } });
+  assert.deepEqual(nn.others.map((o) => [o.member.id, o.reason, o.date]), [['n', 'notNow', '2027-03-01']]);
 });

@@ -10,7 +10,8 @@ const CATEGORY_FILTERS = [
   { value: 'any', label: 'All active' },
   { value: 'ask_soon', label: 'Ask soon' },
   { value: 'not_now', label: 'Not now' },
-  { value: 'do_not_ask', label: 'Do not ask' },
+  { value: 'do_not_ask', label: "Shouldn't ask" },
+  { value: 'wont_accept', label: "Won't accept" },
   { value: 'moved', label: 'Moved' },
 ];
 
@@ -46,7 +47,7 @@ export function renderMembers(root, ctx) {
   cat.addEventListener('change', () => { filters.category = cat.value; draw(); });
   root.append(
     h('div', { class: 'toolbar' }, search, cat, h('button', { text: 'Add person', onclick: () => addPerson(ctx) })),
-    h('p', { class: 'hint', text: 'Tap a name to set a category (Ask soon, Not now, Do not ask), mark someone as moved, or add a note.' }),
+    h('p', { class: 'hint', text: 'Tap a name to set a category (Ask soon, Not now, Shouldn\'t ask, Won\'t accept), mark someone as moved, or add a note.' }),
     countEl, listEl);
   draw();
 }
