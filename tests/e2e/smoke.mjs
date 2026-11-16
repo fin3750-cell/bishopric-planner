@@ -101,16 +101,20 @@ step('missing columns were added to the Sheet');
 await noSideScroll('who to ask');
 if (SHOTS) await page.screenshot({ path: `${SHOTS}/1-ask.png`, fullPage: true });
 
-// 2. Category: Do not ask
+// 2. Category: Shouldn't ask -> stays on the list, at the bottom, grayed
 await page.getByRole('button', { name: /Firwood, Fay/ }).click();
+assert.deepEqual(await page.getByLabel('Category').locator('option').allTextContents(), ['None', 'Ask soon', 'Not now', "Shouldn't ask", "Won't accept"]);
 await page.getByLabel('Category').selectOption('do_not_ask');
 await page.getByRole('button', { name: 'Save' }).click();
 await page.getByText('Saved').waitFor();
-assert.ok(!(await names()).includes('Firwood, Fay'));
+assert.equal((await names()).at(-1), 'Firwood, Fay');
+const fayCard = page.locator('#view .card', { hasText: 'Firwood, Fay' });
+assert.ok((await fayCard.getAttribute('class')).includes('is-muted') && (await fayCard.textContent()).includes("Shouldn't ask"));
+assert.ok((await page.textContent('#view .summary')).includes("1 marked Shouldn't ask or Won't accept"));
 const mh = sheet.tabs.Members[0];
 const ford = sheet.tabs.Members.find((r) => r[0] === 'm6');
 assert.equal(ford[mh.indexOf('category')], 'do_not_ask');
-step('"Do not ask" saved to the Sheet and removed from the list');
+step('"Shouldn\'t ask" saved to the Sheet; person moved to the bottom, grayed');
 
 // 3. Decline highlight
 await page.getByRole('button', { name: /Arbor, Amy/ }).click();
@@ -140,6 +144,27 @@ const hist = await page.textContent('#view');
 assert.ok(hist.includes('≈ 2 Mar 2025') && hist.includes('8 Nov 2026') && hist.includes('visitor'), `History shows: ${hist}`);
 await noSideScroll('history');
 step('history shows estimated dates with ≈ and visitor talks');
+
+// 5b. Search on Who to ask also finds people who are not on the list; "Won't accept" goes to the bottom
+await go('Who to ask');
+await page.getByLabel('Search name').fill('dogwood');
+const searched = await page.textContent('#view');
+assert.ok(searched.includes('Also matching, not on the list (1)') && searched.includes('Scheduled 22 Nov 2026'), searched);
+await noSideScroll('who to ask search');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/9-search.png`, fullPage: true });
+await page.locator('#view .card', { hasText: 'Dogwood, Dan' }).click();
+assert.ok((await page.textContent('#dlg')).includes('(scheduled)'));
+await page.locator('#dlg').evaluate((d) => d.close());
+await page.getByLabel('Search name').fill('');
+await page.getByRole('button', { name: /Elmwood, Eli/ }).click();
+await page.getByLabel('Category').selectOption('wont_accept');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText('Saved').first().waitFor();
+const order = await names();
+assert.deepEqual(order.slice(-2), ['Elmwood, Eli', 'Firwood, Fay']);   // bottom group: no talk on record, by name
+assert.ok((await page.locator('#view .card', { hasText: 'Elmwood, Eli' }).textContent()).includes("Won't accept"));
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/10-bottom.png`, fullPage: true });
+step('search finds a scheduled person with the reason; "Won\'t accept" joins the grayed bottom group');
 
 // 6. Import a new member list
 await go('Import');

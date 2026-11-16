@@ -12,7 +12,7 @@ works from a Google Sheet shared by the bishopric. The tabs along the top are **
 - **Upcoming:** talks scheduled for future Sundays.
 - **History:** past talks, including visitors.
 - **Members:** everyone, with a planning category: *Ask soon*, *Not now (until a date)*,
-  *Do not ask* or *Moved*.
+  *Shouldn't ask*, *Won't accept*, or status *Moved*.
 - **Import:** a fresh member list, compared with the Sheet. New people are flagged "New to ward"
   and people who are no longer listed are flagged as moved, for you to confirm.
 
@@ -104,8 +104,12 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
   - If they decline, tap **Record decline**.
 - **Categories:** tap a name, choose a category and save.
   - *Not now* needs an "until" date. The person comes back on the list on that date.
-  - *Do not ask* and *Moved* people never appear on *Who to ask*. To see them, use the Members
-    screen's filter.
+  - *Shouldn't ask* (the bishopric's judgment) and *Won't accept* (they have said no, or are very
+    unlikely to) stay on *Who to ask*, grayed at the bottom with their label. *Moved* people never
+    appear. To see everyone with a category, use the Members screen's filter.
+- **Someone who already spoke:** search on *Who to ask*. Matching people who aren't on the list
+  appear under "Also matching, not on the list", with the reason (for example "Spoke 8 Nov 2026" or
+  "Scheduled 22 Nov 2026"). Tap one to schedule them anyway.
 - **Visitors:** on *History*, add talks by stake leaders, missionaries and other visitors.
 - **Mistakes:** **Remove** marks a talk, decline or calling as removed (`void` = TRUE in the Sheet).
   The row stays in the Sheet for history. On a calling's page, **Undo** clears one step's date.
@@ -143,7 +147,7 @@ it needs is missing, the app adds it when it loads.
 
 | Tab | Columns |
 |---|---|
-| Members | id, name ("Last, First"), gender, age, age_as_of, source, status (active/moved), notes, category (ask_soon/not_now/do_not_ask), category_until, moved_in, last_in_list |
+| Members | id, name ("Last, First"), gender, age, age_as_of, source, status (active/moved), notes, category (ask_soon / not_now / do_not_ask = "Shouldn't ask" / wont_accept), category_until, moved_in, last_in_list |
 | Talks | id, date, date_estimated, member_id, member_name, name_as_shown, ward_member, source, entered_by, entered_at, notes, void |
 | Refusals | id, date, member_id, member_name, note, entered_by, entered_at, void |
 | Bishopric | id, initials, name, role, member_id, active, email (Google account, linked at first sign-in) |

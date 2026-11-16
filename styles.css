@@ -189,3 +189,7 @@ details.org summary { font-size: 1.05rem; }
 .holder-name { text-decoration: underline; overflow-wrap: anywhere; }
 .vacant { flex: 2 1 12em; color: var(--muted); font-style: italic; }
 .handbook { font-size: 0.85rem; }
+
+/* "Shouldn't ask" / "Won't accept" on Who to ask, and people found by search who are not on the list */
+.card.is-muted { opacity: 0.62; border-left-color: var(--line); }
+.badge.cat-wont_accept { background: var(--line); color: var(--text); }
