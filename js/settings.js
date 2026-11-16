@@ -8,7 +8,7 @@ export function loadSettings() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { saved = {}; }
   const s = { ...DEFAULTS, ...saved };
-  if (!s.clientId && CLIENT_ID) s.clientId = CLIENT_ID;
+  if (CLIENT_ID) s.clientId = CLIENT_ID; // the app's own client ID always wins over one saved on the device
   return s;
 }
 

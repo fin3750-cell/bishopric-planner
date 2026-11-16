@@ -73,8 +73,8 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
       with** as a **test user**. Anyone not on that list cannot sign in.
    4. Create an **OAuth client**: type **Web application**. Under Authorized JavaScript origins, add
       `https://fin3750-cell.github.io`.
-   5. Copy the **Client ID** into `config.js` (`CLIENT_ID`), or paste it on each phone's Settings
-      screen. A client ID is not a secret.
+   5. Copy the **Client ID** into `config.js` (`CLIENT_ID`). This is done: the app's client ID is set,
+      so nobody needs to paste it in Settings. A client ID is not a secret.
 
    Google's console labels change from time to time, so these steps may be worded slightly
    differently. While the app is in "Testing", Google shows a "Google hasn't verified this app"
