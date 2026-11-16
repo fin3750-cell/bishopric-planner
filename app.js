@@ -13,12 +13,15 @@ import { renderSettings } from './js/views/settings.js';
 
 for (const f of FEATURES) registerTables(f.tables);
 
+// Each view belongs to a group. The top row of tabs shows the groups; the second row shows the
+// screens of the current group when it has more than one.
 const VIEWS = [
-  ...FEATURES.flatMap((f) => f.views.map((v) => ({ ...v, needsData: true }))),
-  { id: 'members', label: 'Members', render: renderMembers, needsData: true },
-  { id: 'import', label: 'Import', render: renderImport, needsData: true },
-  { id: 'settings', label: 'Settings', render: renderSettings, needsData: false },
+  ...FEATURES.flatMap((f) => f.views.map((v) => ({ ...v, group: f.group, needsData: true }))),
+  { id: 'members', label: 'Members', group: 'Members', render: renderMembers, needsData: true },
+  { id: 'import', label: 'Import', group: 'Import', render: renderImport, needsData: true },
+  { id: 'settings', label: 'Settings', group: 'Settings', render: renderSettings, needsData: false },
 ];
+const GROUPS = [...new Set(VIEWS.map((v) => v.group))];
 
 const state = { settings: loadSettings(), store: null, authReady: null, loading: false };
 
@@ -102,12 +105,20 @@ function currentView() {
 function render() {
   const view = currentView();
   const nav = clear(document.getElementById('tabs'));
-  for (const v of VIEWS) {
-    nav.append(h('a', { href: `#${v.id}`, class: v.id === view.id ? 'tab active' : 'tab', 'aria-current': v.id === view.id ? 'page' : false, text: v.label }));
+  const primary = h('div', { class: 'tab-row' });
+  for (const g of GROUPS) {
+    const first = VIEWS.find((v) => v.group === g);
+    primary.append(h('a', { href: `#${first.id}`, class: g === view.group ? 'tab active' : 'tab', 'aria-current': g === view.group ? 'true' : false, text: g }));
+  }
+  nav.append(primary);
+  const siblings = VIEWS.filter((v) => v.group === view.group);
+  if (siblings.length > 1) {
+    nav.append(h('div', { class: 'tab-row sub-tabs' }, siblings.map((v) =>
+      h('a', { href: `#${v.id}`, class: v.id === view.id ? 'tab active' : 'tab', 'aria-current': v.id === view.id ? 'page' : false, text: v.label }))));
   }
   renderHeader();
   const main = clear(document.getElementById('view'));
-  main.append(h('h2', { class: 'view-title', text: view.label }));
+  main.append(h('h2', { class: 'view-title', text: view.title || view.label }));
   if (view.needsData && !state.store) {
     if (state.loading) { main.append(h('p', { class: 'summary', text: 'Loading the Sheet…' })); return; }
     if (!state.settings.sheetId || !state.settings.clientId) {

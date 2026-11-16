@@ -72,9 +72,17 @@ const noSideScroll = async (label) => {
   assert.ok(w <= 375, `${label}: page is ${w}px wide at 375px`);
 };
 const step = (s) => console.log(`ok - ${s}`);
-const go = async (label) => {
+const go = async (label, title = label) => {
   await page.getByRole('link', { name: label, exact: true }).click();
-  await page.locator('#view .view-title', { hasText: label }).waitFor({ timeout: 5000 });
+  await page.locator('#view .view-title', { hasText: title }).waitFor({ timeout: 5000 });
+  const text = await page.textContent('#view');
+  assert.ok(!/\[object |\bnull\b|\bundefined\b/.test(text), `${title} screen shows a code value: ${text}`);
+};
+// On a calling's page: the step row whose label is exactly `label`.
+const stepRow = (label) => page.locator('#dlg li.step').filter({ has: page.locator('.step-label', { hasText: new RegExp(`^${label}$`) }) });
+const stepDone = async (label) => {
+  await stepRow(label).getByRole('button', { name: 'Done' }).click();
+  await page.locator('#dlg li.step.done', { hasText: `✓ ${label}` }).first().waitFor({ timeout: 5000 });
 };
 
 // 1. Sign in and load
@@ -151,7 +159,7 @@ assert.equal(rowOf('Sprout, Sam'), undefined);
 step('import: new person marked Ask soon, 8-year-old not, missing person marked moved, under-8 ignored');
 
 // 7. New person is first on the list
-await go('Who to ask');
+await go('Speakers', 'Who to ask');
 assert.equal((await names())[0], 'Newleaf, Nora');
 assert.ok((await page.locator('#view .card').first().textContent()).includes('New to ward'));
 if (SHOTS) await page.screenshot({ path: `${SHOTS}/3-ask-after.png`, fullPage: true });
@@ -163,6 +171,84 @@ await page.locator('#view').getByLabel('Category').selectOption('do_not_ask');
 assert.deepEqual(await names(), ['Firwood, Fay']);
 await noSideScroll('members');
 step('Members screen lists the "Do not ask" people');
+
+// 9. Callings: the app creates the Callings tab; propose a calling and assign who will ask
+await page.locator('#dlg').evaluate((d) => d.open && d.close());
+await go('Callings', 'Current callings');
+assert.ok(sheet.tabs.Callings && sheet.tabs.Callings[0].includes('sustained_on'), 'Callings tab created with its columns');
+assert.ok((await page.textContent('#view')).includes('No callings yet'));
+await page.getByRole('button', { name: 'Propose a calling' }).click();
+await page.locator('#dlg').getByLabel('Member').fill('Arbor, Amy');
+await page.locator('#dlg').getByLabel('Organization').fill('Primary');
+await page.locator('#dlg').getByLabel('Calling').fill('Teacher');
+await page.locator('#dlg').getByLabel('Who will ask').fill('ts');
+await page.getByRole('button', { name: 'Add to In progress' }).click();
+await page.getByText('Proposed: Teacher for Arbor, Amy').waitFor();
+const ch = sheet.tabs.Callings[0];
+const call = () => sheet.tabs.Callings.find((r) => r[ch.indexOf('member_name')] === 'Arbor, Amy');
+assert.equal(call()[ch.indexOf('extend_by')], 'TS');
+step('Callings tab created; calling proposed with "who will ask" = TS');
+
+// 10. My tasks shows it; ask and accept
+await go('My tasks');
+const tasksText = await page.textContent('#view');
+assert.ok(tasksText.includes('Assigned to TS (1)') && tasksText.includes('Ask (extend the call)'), tasksText);
+await page.locator('#view .card', { hasText: 'Arbor, Amy' }).click();
+await stepDone('Asked');
+await page.locator('#dlg').getByRole('button', { name: 'Accepted' }).click();
+await page.locator('#dlg li.step.done', { hasText: '✓ Accepted' }).waitFor();
+assert.equal(typeof call()[ch.indexOf('accepted_on')], 'number');
+step('My tasks lists the call; asked and accepted recorded');
+await page.locator('#dlg').evaluate((d) => d.close());
+
+// 11. Sunday business: sustain
+await go('Sunday');
+assert.ok((await page.textContent('#view')).includes('To sustain (1)'));
+await noSideScroll('sunday');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/4-sunday.png`, fullPage: true });
+await page.getByRole('button', { name: 'Mark checked ones as done' }).click();
+await page.getByText('1 marked done for 22 Nov 2026').waitFor();
+assert.equal(call()[ch.indexOf('sustained_on')], serial('2026-11-22'));
+step('Sunday business: sustained on 22 Nov 2026');
+
+// 12. Current callings, set apart, record in LCR
+await go('Current');
+const cur = await page.textContent('#view');
+assert.ok(cur.includes('Primary') && cur.includes('Teacher') && cur.includes('Set apart') && cur.includes('Record in LCR'), cur);
+await page.locator('#view .card', { hasText: 'Teacher' }).click();
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/5-calling.png`, fullPage: true });
+await stepDone('Set apart');
+await stepDone('Recorded in LCR');
+assert.ok((await page.textContent('#dlg')).includes('Serving'));
+step('set apart and recorded in LCR; calling now "Serving"');
+
+// 13. No calling list excludes her
+await page.locator('#dlg').evaluate((d) => d.close());
+await go('No calling');
+const nc = await names();
+assert.ok(!nc.includes('Arbor, Amy') && nc.includes('Dogwood, Dan'), nc.join(', '));
+step('"No calling" excludes members with a calling');
+
+// 14. Release: start, tell, read on Sunday, record
+await go('Current');
+await page.locator('#view .card', { hasText: 'Teacher' }).click();
+await page.locator('#dlg').getByRole('button', { name: 'Start release' }).click();
+await stepDone('Member told');
+await page.locator('#dlg').evaluate((d) => d.close());
+await go('Sunday');
+assert.ok((await page.textContent('#view')).includes('Releases (1)'));
+await page.getByRole('button', { name: 'Mark checked ones as done' }).click();
+await page.getByText('1 marked done for 22 Nov 2026').waitFor();
+await go('In progress');
+assert.ok((await page.textContent('#view')).includes('Record the release in LCR (1)'));
+await page.locator('#view .card', { hasText: 'Arbor, Amy' }).click();
+await stepDone('Release recorded in LCR');
+assert.ok((await page.textContent('#dlg')).includes('Released'));
+await page.locator('#dlg').evaluate((d) => d.close());
+await go('Current');
+assert.ok((await page.textContent('#view')).includes('No current callings match') || (await page.textContent('#view')).includes('No callings yet'));
+step('release told, read on Sunday, recorded; no longer a current calling');
+await noSideScroll('callings');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');

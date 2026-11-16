@@ -1,5 +1,7 @@
-// The list of features. To add one (for example callings), create js/features/<name>.js that
-// exports { id, tables, views, memberSections } like speakers.js, then add it here.
+// The list of features, in the order their tabs appear. To add one, create
+// js/features/<name>.js that exports { id, group, tables, views, memberSections } like speakers.js,
+// then add it here.
 import { speakers } from './speakers.js';
+import { callingsFeature } from './callings.js';
 
-export const FEATURES = [speakers];
+export const FEATURES = [speakers, callingsFeature];

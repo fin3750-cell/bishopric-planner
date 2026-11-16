@@ -4,4 +4,4 @@
 // If this is left empty, each person can paste the ID on the Settings screen instead.
 export const CLIENT_ID = '';
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.2.0';
