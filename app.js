@@ -5,6 +5,7 @@ import { registerTables, Store } from './js/store.js';
 import { SheetsApi, AuthError } from './js/sheets.js';
 import { initAuth, signIn, signOut, currentToken } from './js/auth.js';
 import { loadSettings } from './js/settings.js';
+import { activeBishopric } from './js/members.js';
 import { todayISO, addDays, nextSunday } from './js/dates.js';
 import { h, clear, toast } from './js/ui.js';
 import { renderMembers, openMember } from './js/views/members.js';
@@ -39,6 +40,7 @@ const ctx = {
   go: (id) => { if (location.hash === `#${id}`) render(); else location.hash = id; },
   fail: (e) => handleError(e),
   signedIn: () => Boolean(state.store),
+  bishopric: () => (state.store ? activeBishopric(state.store.records('Bishopric')) : []),
   reload: () => loadData().catch(handleError),
   signOut: () => { signOut(); state.store = null; toast('Signed out'); render(); },
   applySettings: (next) => {

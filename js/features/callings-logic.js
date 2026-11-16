@@ -1,7 +1,7 @@
 // Pure rules for callings: the steps of a call and a release, open tasks, Sunday business,
 // time in calling and who has no calling. Each row of the Callings tab is one person in one calling.
 
-import { ageGroup, currentAge, isActive, isTrue } from '../members.js';
+import { ageGroup, currentAge, isActive, isTrue, displayName, initialsFor } from '../members.js';
 
 export const DATE_COLUMNS = ['proposed_on', 'extended_on', 'accepted_on', 'declined_on', 'sustained_on', 'set_apart_on',
   'recorded_on', 'release_proposed_on', 'release_informed_on', 'released_on', 'release_recorded_on'];
@@ -138,4 +138,34 @@ export function membersWithoutCalling(members, callings, today, minAge = 18) {
     return age === null || age >= minAge;
   }).map((m) => ({ member: m, age: currentAge(m, today), group: ageGroup(currentAge(m, today)) }))
     .sort((a, b) => a.member.name.localeCompare(b.member.name));
+}
+
+// The ward's bishopric and executive secretary, from current callings in the Bishopric organization
+// (callings marked "Serving outside the ward" are skipped). Used to fill the Bishopric list.
+const BISHOPRIC_ROLES = [
+  ['Bishop', 'Bishop'],
+  ['Bishopric First Counselor', 'First Counselor'],
+  ['Bishopric Second Counselor', 'Second Counselor'],
+  ['Ward Executive Secretary', 'Executive Secretary'],
+];
+
+export function bishopricFromCallings(callings) {
+  const out = [];
+  for (const [calling, role] of BISHOPRIC_ROLES) {
+    for (const c of live(callings)) {
+      if (c.calling !== calling || c.organization !== 'Bishopric' || !isCurrent(c)) continue;
+      if (out.some((o) => o.member_id === c.member_id)) continue;
+      out.push({ initials: initialsFor(c.member_name), name: displayName(c.member_name), role, member_id: c.member_id });
+    }
+  }
+  // Two people with the same initials: add the second letter of the first name to the later one.
+  const seen = new Map();
+  for (const o of out) {
+    if (seen.has(o.initials)) {
+      const first = displayName(o.name).split(' ')[0] || '';
+      o.initials = `${o.initials[0]}${(first[1] || '').toUpperCase()}${o.initials.slice(1)}`;
+    }
+    seen.set(o.initials, true);
+  }
+  return out;
 }

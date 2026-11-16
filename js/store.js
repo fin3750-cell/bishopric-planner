@@ -11,6 +11,11 @@ const SCHEMA = {
       'category', 'category_until', 'moved_in', 'last_in_list'],
     dates: ['age_as_of', 'category_until', 'moved_in', 'last_in_list'],
   },
+  // The people who can be assigned steps (initials used across the app).
+  Bishopric: {
+    columns: ['id', 'initials', 'name', 'role', 'member_id', 'active'],
+    dates: [],
+  },
 };
 
 export function registerTables(tables) {

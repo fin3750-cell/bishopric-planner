@@ -116,6 +116,39 @@ export function diffImport(members, parsedRows, minAge = 8) {
   return { updates, added, missing, returned, duplicates, ignoredYoung };
 }
 
+// "Last, First Middle" -> "First Last". Names without a comma are returned as they are.
+export function displayName(name) {
+  const s = String(name || '').trim();
+  const i = s.indexOf(',');
+  if (i < 0) return s;
+  const last = s.slice(0, i).trim();
+  const first = s.slice(i + 1).trim().split(/\s+/)[0] || '';
+  return `${first} ${last}`.trim();
+}
+
+// "Last, First" -> "FL" (first letter of the first name, then of the last name).
+export function initialsFor(name) {
+  const s = String(name || '').trim();
+  let first = '';
+  let last = '';
+  if (s.includes(',')) {
+    last = s.slice(0, s.indexOf(',')).trim();                 // whole surname part, e.g. "Núñez Cárdenas"
+    first = s.slice(s.indexOf(',') + 1).trim().split(/\s+/)[0] || '';
+  } else {
+    const parts = s.split(/\s+/).filter(Boolean);
+    first = parts[0] || '';
+    last = parts.length > 1 ? parts[parts.length - 1] : '';
+  }
+  return `${first[0] || ''}${last[0] || ''}`.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+}
+
+// Bishopric list (Bishopric tab): people who can be assigned steps. Rows are never deleted;
+// active = FALSE takes someone off the list.
+export function activeBishopric(rows) {
+  return rows.filter((r) => r.initials && !isTrue(r.void) && String(r.active).toUpperCase() !== 'FALSE')
+    .map((r) => ({ ...r, initials: String(r.initials).trim().toUpperCase() }));
+}
+
 // Short random id, safe when three people add records at the same time.
 export function makeId(prefix) {
   const rand = Math.floor(Math.random() * 36 ** 4).toString(36).padStart(4, '0');

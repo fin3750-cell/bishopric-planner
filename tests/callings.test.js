@@ -95,3 +95,30 @@ test('current callings and members without a calling', () => {
   assert.deepEqual(membersWithoutCalling(members, callings, TODAY, 18).map((r) => r.member.id), ['e', 'i']);
   assert.deepEqual(membersWithoutCalling(members, callings, TODAY, 12).map((r) => r.member.id), ['e', 'g', 'i']);
 });
+
+test('bishopric list from current callings', async () => {
+  const { bishopricFromCallings } = await import('../js/features/callings-logic.js');
+  const { initialsFor, displayName, activeBishopric } = await import('../js/members.js');
+  assert.equal(initialsFor('Arbor, Amy Lynn'), 'AA');
+  assert.equal(initialsFor('Núñez Cárdenas, José Luis'), 'JN');
+  assert.equal(displayName('Arbor, Amy Lynn'), 'Amy Arbor');
+  const cs = [
+    { id: '1', member_id: 'a', member_name: 'Arbor, Amy', calling: 'Bishopric First Counselor', organization: 'Bishopric', sustained_on: '2025-09-28' },
+    { id: '2', member_id: 'b', member_name: 'Birch, Ben', calling: 'Bishop', organization: 'Bishopric', sustained_on: '2025-09-28' },
+    { id: '3', member_id: 'c', member_name: 'Cedar, Cal', calling: 'Bishop', organization: 'Serving outside the ward', sustained_on: '2025-05-25' },
+    { id: '4', member_id: 'd', member_name: 'Dogwood, Dan', calling: 'Ward Executive Secretary', organization: 'Bishopric', sustained_on: '2026-04-12' },
+    { id: '5', member_id: 'e', member_name: 'Elm, Edna', calling: 'Bishopric Second Counselor', organization: 'Bishopric', sustained_on: '2026-05-31' },
+    { id: '6', member_id: 'f', member_name: 'Fir, Fred', calling: 'Bishopric Second Counselor', organization: 'Bishopric', sustained_on: '2020-01-05', released_on: '2024-01-07', release_recorded_on: '2024-01-08' },
+    { id: '7', member_id: 'g', member_name: 'Elm, Eric', calling: 'Ward Clerk', organization: 'Bishopric', sustained_on: '2026-07-12' },
+  ];
+  assert.deepEqual(bishopricFromCallings(cs).map((b) => [b.initials, b.name, b.role]), [
+    ['BB', 'Ben Birch', 'Bishop'],
+    ['AA', 'Amy Arbor', 'First Counselor'],
+    ['EE', 'Edna Elm', 'Second Counselor'],
+    ['DD', 'Dan Dogwood', 'Executive Secretary'],
+  ]);
+  // same initials -> second letter of the first name added
+  const twin = bishopricFromCallings([cs[1], { id: '8', member_id: 'h', member_name: 'Brown, Bill', calling: 'Ward Executive Secretary', organization: 'Bishopric', sustained_on: '2026-01-04' }]);
+  assert.deepEqual(twin.map((b) => b.initials), ['BB', 'BIB']);
+  assert.deepEqual(activeBishopric([{ initials: 'kw', active: true }, { initials: 'gh', active: 'FALSE' }, { initials: '' }]).map((r) => r.initials), ['KW']);
+});

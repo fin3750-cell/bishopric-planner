@@ -1,15 +1,24 @@
-// Settings saved on this device: Sheet link, sign-in client ID, initials, look-back window.
+// Settings saved on this device (Sheet link, sign-in client ID, initials, look-back window), and the
+// Bishopric list, which is saved in the Sheet so all of the bishopric share it.
 
 import { APP_VERSION, CLIENT_ID } from '../../config.js';
 import { spreadsheetIdFrom } from '../sheets.js';
 import { saveSettings } from '../settings.js';
-import { h, field, toast } from '../ui.js';
+import { makeId } from '../members.js';
+import { h, add, field, select, busy, toast } from '../ui.js';
 
 export function renderSettings(root, ctx) {
   const s = ctx.settings;
+  const people = ctx.signedIn() ? ctx.bishopric() : [];
   const sheet = h('input', { type: 'url', value: s.sheetId ? `https://docs.google.com/spreadsheets/d/${s.sheetId}/edit` : '', placeholder: 'https://docs.google.com/spreadsheets/d/…', 'aria-label': 'Sheet link' });
   const client = h('input', { type: 'text', value: s.clientId || '', placeholder: '….apps.googleusercontent.com', 'aria-label': 'Google client ID', disabled: Boolean(CLIENT_ID) });
-  const initials = h('input', { type: 'text', value: s.initials || '', maxlength: 6, placeholder: 'e.g. KW', 'aria-label': 'Your initials' });
+  // With a Bishopric list, pick yourself from it; otherwise type initials.
+  const mine = String(s.initials || '').toUpperCase();
+  const initials = people.length
+    ? select([{ value: '', label: 'Choose…' },
+      ...people.map((p) => ({ value: p.initials, label: `${p.initials} — ${p.name}` })),
+      ...(mine && !people.some((p) => p.initials === mine) ? [{ value: mine, label: mine }] : [])], mine, { 'aria-label': 'Your initials' })
+    : h('input', { type: 'text', value: s.initials || '', maxlength: 6, placeholder: 'e.g. KW', 'aria-label': 'Your initials' });
   const windowYears = h('input', { type: 'number', min: 1, max: 10, step: 0.5, value: s.windowYears, 'aria-label': 'Look-back years' });
   const minAge = h('input', { type: 'number', min: 0, max: 18, step: 1, value: s.minAge, 'aria-label': 'Minimum age' });
   const save = h('button', { text: 'Save settings' });
@@ -27,14 +36,61 @@ export function renderSettings(root, ctx) {
     if (!saveSettings(next)) toast('This browser would not save settings (private mode?). They will last until you close the app.', 'error');
     ctx.applySettings(next);
   });
-  root.append(
+  add(root,
     field('Google Sheet link', sheet, 'The bishopric\'s planner Sheet. Only people it is shared with can open it.'),
     field('Google client ID', client, CLIENT_ID ? 'Set in the app.' : 'From Google Cloud Console. Not a secret.'),
-    field('Your initials', initials, 'Saved with each talk or decline you record.'),
+    field('Your initials', initials, people.length ? 'Steps assigned to you show on My tasks. Saved with each talk or decline you record.' : 'Saved with each talk or decline you record.'),
     field('Look-back window (years)', windowYears, 'People with a talk inside this window are left off "Who to ask".'),
     field('Minimum age', minAge),
     h('div', { class: 'toolbar' }, save,
       ctx.signedIn() ? h('button', { class: 'secondary', text: 'Reload data', onclick: () => ctx.reload() }) : null,
       ctx.signedIn() ? h('button', { class: 'secondary', text: 'Sign out', onclick: () => ctx.signOut() }) : null),
+    ctx.signedIn() ? bishopricSection(ctx) : h('p', { class: 'hint', text: 'Sign in to see and edit the Bishopric list.' }),
     h('p', { class: 'hint', text: `Version ${APP_VERSION}. Settings are saved on this device only. Member data is read from the Sheet each time and is not stored on the device.` }));
+}
+
+function bishopricSection(ctx) {
+  const people = ctx.bishopric();
+  const rows = ctx.store.records('Bishopric');
+  const list = h('ul', { class: 'rows' }, people.map((p) => {
+    const remove = h('button', { class: 'small secondary', text: 'Remove' });
+    remove.addEventListener('click', () => {
+      if (!window.confirm(`Take ${p.name || p.initials} off the Bishopric list? Steps already assigned to ${p.initials} keep those initials.`)) return;
+      busy(remove, async () => { await ctx.store.update('Bishopric', [{ id: p.id, fields: { active: false } }]); toast('Removed'); ctx.refresh(); }).catch(() => {});
+    });
+    return h('li', { class: 'row' }, h('span', {}, h('strong', { text: p.initials }), ` ${p.name}${p.role ? ` · ${p.role}` : ''}`), remove);
+  }));
+
+  // Suggestions from current callings (Bishop, counselors, executive secretary), not already listed.
+  const suggest = ctx.features.flatMap((f) => (f.suggestBishopric ? f.suggestBishopric(ctx) : []))
+    .filter((sg) => !people.some((p) => p.initials === sg.initials || (sg.member_id && p.member_id === sg.member_id)));
+  const fill = h('button', { text: `Fill from org chart (${suggest.length})`, disabled: !suggest.length });
+  fill.addEventListener('click', () => busy(fill, async () => {
+    await ctx.store.add('Bishopric', suggest.map((sg) => ({ id: makeId('b'), ...sg, active: true })));
+    toast(`${suggest.length} added`);
+    ctx.refresh();
+  }).catch(() => {}));
+
+  const ini = h('input', { type: 'text', maxlength: 6, placeholder: 'KW', 'aria-label': 'New initials', class: 'initials' });
+  const name = h('input', { type: 'text', placeholder: 'First Last', 'aria-label': 'New name' });
+  const role = h('input', { type: 'text', placeholder: 'Role (optional)', 'aria-label': 'New role' });
+  const addBtn = h('button', { class: 'secondary', text: 'Add' });
+  addBtn.addEventListener('click', () => busy(addBtn, async () => {
+    const i = ini.value.trim().toUpperCase();
+    if (!i || !name.value.trim()) throw new Error('Enter initials and a name.');
+    if (people.some((p) => p.initials === i)) throw new Error(`${i} is already on the list.`);
+    // Someone removed earlier with the same initials is turned back on instead of added twice.
+    const old = rows.find((r) => String(r.initials).toUpperCase() === i);
+    if (old) await ctx.store.update('Bishopric', [{ id: old.id, fields: { active: true, name: name.value.trim(), role: role.value.trim() } }]);
+    else await ctx.store.add('Bishopric', [{ id: makeId('b'), initials: i, name: name.value.trim(), role: role.value.trim(), member_id: '', active: true }]);
+    toast(`${i} added`);
+    ctx.refresh();
+  }).catch(() => {}));
+
+  return h('section', { class: 'sub' },
+    h('h3', { text: 'Bishopric list' }),
+    h('p', { class: 'hint', text: 'The people who can be assigned steps (asking, setting apart, recording in LCR). Saved in the Sheet, so everyone sees the same list. "Fill from org chart" adds the current bishop, counselors and executive secretary from the Callings tab.' }),
+    people.length ? list : h('p', { class: 'empty', text: 'No one on the list yet.' }),
+    h('div', { class: 'toolbar' }, fill),
+    h('div', { class: 'inline-form' }, field('Initials', ini), field('Name', name), field('Role', role), addBtn));
 }
