@@ -174,9 +174,10 @@ step('Members screen lists the "Do not ask" people');
 
 // 9. Callings: the app creates the Callings tab; propose a calling and assign who will ask
 await page.locator('#dlg').evaluate((d) => d.open && d.close());
-await go('Callings', 'Current callings');
+await go('Callings', 'Organization chart');
 assert.ok(sheet.tabs.Callings && sheet.tabs.Callings[0].includes('sustained_on'), 'Callings tab created with its columns');
 assert.ok((await page.textContent('#view')).includes('No callings yet'));
+await go('Current', 'Current callings');
 await page.getByRole('button', { name: 'Propose a calling' }).click();
 await page.locator('#dlg').getByLabel('Member').fill('Arbor, Amy');
 await page.locator('#dlg').getByLabel('Organization').fill('Primary');
@@ -249,6 +250,84 @@ await go('Current');
 assert.ok((await page.textContent('#view')).includes('No current callings match') || (await page.textContent('#view')).includes('No callings yet'));
 step('release told, read on Sunday, recorded; no longer a current calling');
 await noSideScroll('callings');
+
+// 15. LCR callings import (made-up report text)
+await go('LCR import', 'Import the LCR callings report');
+await page.getByLabel('Callings report text').fill([
+  'LCR Callings List',
+  'Cedar, Cora Primary Teacher (24 Apr 2026/No)',
+  'Dogwood, Dan',
+  'Elders Quorum President (29 Jun 2025/Yes)',
+  'Elders Quorum Secretary (1 Feb 2026/No)',
+  'Create a Report https://example.invalid/report',
+  '1 of 2 11/15/2026, 6:53 PM',
+  'Elders Quorum Secretary (1 Feb 2026/No)',
+  'Firwood, Fay Temple Worker (6 Sep 2024/No)',
+  'Newleaf, Nora Relief Society President (19 Jan 2025/Yes)',
+  'Nobody, Nils Primary Pianist (1 Mar 2026/No)',
+  'Count: 5',
+].join('\n'));
+await page.getByRole('button', { name: 'Check report' }).click();
+const lcr = await page.textContent('#view');
+assert.ok(lcr.includes('5 new callings to add'), lcr);
+assert.ok(lcr.includes('1 lines repeated across a page break'), lcr);
+assert.ok(lcr.includes('Name not found in Members'), lcr);
+assert.ok(!/\[object |\bnull\b|\bundefined\b/.test(lcr), lcr);
+await noSideScroll('lcr import preview');
+await page.getByRole('button', { name: 'Apply changes' }).click();
+await page.getByText('Callings report applied: 5 added, 0 updated').waitFor();
+await page.locator('#view .view-title', { hasText: 'Organization chart' }).waitFor();
+const imported = sheet.tabs.Callings.filter((r) => r[ch.indexOf('source')] && String(r[ch.indexOf('source')]).startsWith('LCR import'));
+assert.equal(imported.length, 5);
+const eqp = imported.find((r) => r[ch.indexOf('calling')] === 'Elders Quorum President');
+assert.equal(eqp[ch.indexOf('organization')], 'Elders Quorum');
+assert.equal(eqp[ch.indexOf('sustained_on')], serial('2025-06-29'));
+assert.equal(eqp[ch.indexOf('set_apart_on')], serial('2025-06-29'));
+assert.equal(eqp[ch.indexOf('recorded_on')], serial('2026-11-16'));
+step('LCR import: 5 added, page-break repeat and unknown name held back, dates and organization set');
+
+// 16. Organization chart
+const chart = page.locator('#view');
+const box = (name) => chart.locator('.org', { hasText: name }).first();
+const eq = await box('Elders Quorum').textContent();
+assert.ok(eq.includes('Elders Quorum President') && eq.includes('Dogwood, Dan') && eq.includes('No one called'), eq);
+assert.ok(eq.includes('Elders Quorum Secretary') && eq.includes('1 yr 4 mo'), eq);   // sustained 29 Jun 2025 -> 16 months on 16 Nov 2026
+assert.ok((await box('Relief Society').textContent()).includes('Newleaf, Nora'));
+assert.ok((await box('Sunday School').textContent()).includes('No one called (optional)'));
+const outside = await box('Serving outside the ward').textContent();
+assert.ok(outside.includes('Temple Worker') && outside.includes('Firwood, Fay'), outside);
+await noSideScroll('org chart');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/6-orgchart.png`, fullPage: true });
+step('org chart: positions with holders, "No one called", optional positions, outside-the-ward section');
+
+// 17. Change a calling's organization on its page
+await box('Primary').getByRole('button', { name: /Cedar, Cora/ }).click();
+assert.ok((await page.textContent('#dlg')).includes('Called and set apart by: Bishop or an assigned counselor'));
+await page.locator('#dlg').getByLabel('Organization').selectOption('Sunday School');
+await page.locator('#dlg').getByRole('button', { name: 'Save', exact: true }).click();
+await page.getByText('Saved').first().waitFor();
+await page.locator('#dlg').evaluate((d) => d.close());
+await go('Org chart', 'Organization chart');
+assert.ok((await box('Sunday School').textContent()).includes('Cedar, Cora'));
+step('calling page shows handbook guidance; organization changed to Sunday School');
+
+// 18. A quorum-sustained calling goes to the quorum list on the Sunday screen
+await go('In progress', 'Calls and releases in progress');
+await page.getByRole('button', { name: 'Propose a calling' }).click();
+await page.locator('#dlg').getByLabel('Member').fill('Elmwood, Eli');
+await page.locator('#dlg').getByLabel('Calling').fill('Elders Quorum Teacher');
+await page.locator('#dlg').getByLabel('Calling').dispatchEvent('change');
+assert.equal(await page.locator('#dlg').getByLabel('Organization').inputValue(), 'Elders Quorum');
+await page.getByRole('button', { name: 'Add to In progress' }).click();
+await page.locator('#view .card', { hasText: 'Elmwood, Eli' }).click();
+await stepDone('Asked');
+await page.locator('#dlg').getByRole('button', { name: 'Accepted' }).click();
+await page.locator('#dlg li.step.done', { hasText: '✓ Accepted' }).waitFor();
+await page.locator('#dlg').evaluate((d) => d.close());
+await go('Sunday', 'Sunday business');
+const sun = await page.textContent('#view');
+assert.ok(sun.includes('To sustain (0)') && sun.includes('In a quorum or Young Women meeting (1)') && sun.includes('quorum meeting'), sun);
+step('Sunday: an elders quorum teacher is listed for the quorum meeting, not sacrament meeting');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');

@@ -174,3 +174,16 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 .step-label { font-weight: 600; }
 .step-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 input.initials { width: 5.5em; text-transform: uppercase; }
+
+/* Organization chart */
+.org-title { margin: 0 0 6px; font-size: 1.05rem; }
+details.org summary { font-size: 1.05rem; }
+.positions { list-style: none; margin: 0; padding: 0; }
+.pos { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.pos:last-child { border-bottom: 0; }
+.pos-title { flex: 1 1 11em; font-weight: 600; font-size: 0.95rem; overflow-wrap: anywhere; }
+.holders { flex: 2 1 12em; display: flex; flex-direction: column; gap: 2px; }
+.holder { background: none; color: var(--accent); padding: 0; text-align: left; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.holder-name { text-decoration: underline; overflow-wrap: anywhere; }
+.vacant { flex: 2 1 12em; color: var(--muted); font-style: italic; }
+.handbook { font-size: 0.85rem; }

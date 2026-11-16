@@ -20,6 +20,10 @@ Declines are recorded with a date. A decline made after a person's last talk hig
 amber on the list. The decline does not hide them.
 
 **Callings**
+- **Org chart:** each ward organization with its standard positions and who holds them, then the
+  organization's other callings. Positions no one holds show "No one called" in gray, and
+  positions the handbook calls only if needed are marked "(optional)". Stake and temple callings,
+  and callings the bishopric marked as serving in another unit, are under "Serving outside the ward".
 - **Current:** who holds each calling and for how long, counted from the date sustained. Grouped
   by organization, or sorted longest-serving first.
 - **In progress:** every call and release that still has a step to do, grouped by its next step.
@@ -27,6 +31,10 @@ amber on the list. The decline does not hide them.
   told), then callings to sustain (once accepted). Mark them done for that Sunday in one tap.
 - **My tasks:** the steps assigned to your initials, plus steps nobody has been assigned yet.
 - **No calling:** active members (adults, or 12+) with no current or proposed calling.
+- **LCR import:** paste the LCR callings report (each calling with its date sustained and Set
+  Apart Yes/No), or choose a CSV. You review what will change before it is saved.
+- **Sunday:** callings presented in a quorum or Young Women meeting are listed separately from
+  sacrament meeting business.
 
 The steps tracked for a call are: proposed → asked → accepted or declined → sustained → set apart
 and recorded in LCR (in either order). For a release: decided → member told → released in
@@ -92,6 +100,16 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
   - Once it is accepted it shows on the Sunday screen. Tap **Mark checked ones as done** after
     sacrament meeting.
   - After sustaining, record **Set apart** and **Recorded in LCR**.
+- **The LCR callings report:** run it in LCR, copy all its text, paste it on **Callings → LCR import**
+  and tap **Check report**.
+  - New callings are added as sustained and recorded in LCR.
+  - "Set apart: Yes" uses the sustained date, because the report has no set-apart date.
+  - Callings already in the Sheet only get missing dates filled in, so the same report can be
+    imported again safely.
+  - A line repeated at a page break is left out unless you check it.
+  - Names not in Members are listed and not imported.
+  - Current callings missing from the report can be marked released.
+  - The organization comes from the calling's name. You can change it on the calling's page.
 - **A release:** open the current calling and tap **Start release**. Record when the member is told;
   the release then appears on the Sunday screen. Afterwards, record it in LCR.
 - **Monthly:** open the Member List and copy all its text (or save it as a text file). Paste it on
@@ -116,6 +134,13 @@ it needs is missing, the app adds it when it loads.
 
 Each Callings row is one person in one calling, from proposal to release. A later step implies the
 earlier ones, so a calling entered as already sustained is not listed as "to ask".
+
+**Handbook guidance.** The organization chart's standard positions, where each calling is sustained
+(sacrament meeting, or a quorum or Young Women meeting), and who approves and sets apart each
+calling come from the General Handbook, section 30.8.1 "Ward Callings". Sections 8.3.4, 9.3.3,
+12.1.3, 13.2.2 and 13.7.2 are also used, for optional secretaries and counselors, the nursery and the
+resource center. The sections are cited in `js/features/callings-orgs.js`. They were read on
+16 Nov 2026, so check them again if the handbook is updated.
 
 Notes on the data:
 
@@ -150,7 +175,8 @@ js/sheets.js                       Google Sheets API calls
 js/store.js                        tabs as tables of records; adds missing tabs and columns
 js/members.js, js/dates.js         pure helpers (tested)
 js/views/                          Members, Import and Settings screens
-js/features/                       one module per feature (speakers, callings) and its *-logic.js rules
+js/features/                       one module per feature (speakers, callings), with pure rules in
+                                   *-logic.js, callings-orgs.js (handbook) and callings-import.js
 ```
 
 ### Adding a feature
@@ -168,6 +194,6 @@ any new files to `SHELL` in `sw.js` and raise the `CACHE` version.
 
 ## Roadmap
 
-- **Import current callings from LCR:** load who holds each calling and the date sustained, so time
-  in calling is right from the start. It will be built from a real copy of the LCR report.
 - **Releases to consider:** an option to highlight callings held longer than a chosen number of years.
+- **Monthly callings check:** remind the bishopric to import the LCR callings report and the member
+  list.

@@ -8,12 +8,13 @@ import {
   COLUMNS, DATE_COLUMNS, STEPS, STEP_ORDER, callingState, isCurrent, tenureMonths, formatTenure,
   openTasks, myTasks, sundayBusiness, currentCallings, callingsFor, membersWithoutCalling,
 } from './callings-logic.js';
+import { ORG_NAMES, organizationFor, sustainedIn, handbookFor, setApartByStake } from './callings-orgs.js';
+import { renderOrgChart } from './callings-orgchart.js';
+import { renderLcrImport } from './callings-lcr.js';
 
 const tables = { Callings: { columns: COLUMNS, dates: DATE_COLUMNS } };
 
-// Suggestions only; organizations and callings already in the Sheet are added to these lists.
-const DEFAULT_ORGS = ['Bishopric', 'Elders Quorum', 'Relief Society', 'Young Women', 'Aaronic Priesthood', 'Primary',
-  'Sunday School', 'Music', 'Ward Mission', 'Temple and Family History', 'Activities', 'Other'];
+function orgRank(org) { const i = ORG_NAMES.indexOf(org); return i < 0 ? ORG_NAMES.length - 2.5 : i; }
 
 const PHASE_TEXT = {
   proposed: 'Proposed, not yet asked', awaiting: 'Asked, waiting for an answer', to_sustain: 'Accepted, to sustain',
@@ -129,11 +130,26 @@ export function openCalling(id, ctx) {
     });
     actions.push(remove);
 
+    // Organization and calling name can be corrected (for example after an LCR import).
+    const orgOptions = ORG_NAMES.includes(c.organization) || !c.organization ? ORG_NAMES : [...ORG_NAMES, c.organization];
+    const orgSel = select(orgOptions.map((o) => ({ value: o, label: o })), c.organization || organizationFor(c.calling).organization, { 'aria-label': 'Organization' });
+    const nameIn = h('input', { type: 'text', value: c.calling || '', 'aria-label': 'Calling name' });
+    const saveEdit = h('button', { class: 'small secondary', text: 'Save' });
+    saveEdit.addEventListener('click', () => busy(saveEdit, async () => {
+      if (!nameIn.value.trim()) throw new Error('The calling needs a name.');
+      await save(ctx, c.id, { organization: orgSel.value, calling: nameIn.value.trim() });
+      toast('Saved'); reopen();
+    }).catch(() => {}));
+    const hb = handbookFor(c.calling, c.organization);
+
     return [
       h('p', { class: 'meta', text: [c.organization, PHASE_TEXT[state.phase], tenure !== null ? `${formatTenure(tenure)} in calling` : ''].filter(Boolean).join(' · ') }),
       c.member_id ? h('button', { class: 'link', text: `Open ${c.member_name}'s page`, onclick: () => { close(); ctx.openMember(c.member_id); } }) : null,
+      h('p', { class: 'hint handbook' }, hb.sustained, hb.approvedBy ? ` · Approved by: ${hb.approvedBy}` : '', hb.setApartBy ? ` · Called and set apart by: ${hb.setApartBy}` : '', ' (General Handbook 30.8.1)'),
       h('section', { class: 'sub' }, h('h3', { text: 'Call' }), h('ul', { class: 'rows' }, rows)),
       releaseRows.length ? h('section', { class: 'sub' }, h('h3', { text: 'Release' }), h('ul', { class: 'rows' }, releaseRows)) : null,
+      h('section', { class: 'sub' }, h('h3', { text: 'Organization and calling' }),
+        h('div', { class: 'inline-form' }, field('Organization', orgSel), field('Calling', nameIn), saveEdit)),
       h('section', { class: 'sub' }, h('h3', { text: 'Notes' }), notes, saveNotes),
       h('div', { class: 'toolbar' }, actions),
       datalist('initials-list', initialsList(ctx)),
@@ -152,6 +168,7 @@ export function proposeCalling(ctx, memberId) {
     const calling = h('input', { type: 'text', list: 'calling-list', placeholder: 'Calling', autocomplete: 'off', 'aria-label': 'Calling' });
     const by = h('input', { type: 'text', list: 'initials-list', maxlength: 6, placeholder: 'Initials', 'aria-label': 'Who will ask', class: 'initials' });
     const notes = h('input', { type: 'text', placeholder: 'Note (optional)', 'aria-label': 'Note' });
+    calling.addEventListener('change', () => { if (!org.value.trim()) org.value = organizationFor(calling.value).organization; });
     const create = h('button', { text: 'Add to In progress' });
     create.addEventListener('click', () => busy(create, async () => {
       const m = members.find((x) => normName(x.name) === normName(who.value));
@@ -171,7 +188,7 @@ export function proposeCalling(ctx, memberId) {
       field('Who will ask?', by, 'Initials of the bishopric member who will extend the call.'),
       field('Note', notes), create,
       datalist('member-list', members.map((m) => m.name).sort((a, b) => a.localeCompare(b))),
-      datalist('org-list', uniq([...DEFAULT_ORGS, ...all.map((c) => c.organization)])),
+      datalist('org-list', [...ORG_NAMES, ...uniq(all.map((c) => c.organization)).filter((o) => !ORG_NAMES.includes(o))]),
       datalist('calling-list', uniq(all.map((c) => c.calling))),
       datalist('initials-list', initialsList(ctx)),
     ];
@@ -192,9 +209,10 @@ function renderCurrent(root, ctx) {
   const draw = () => {
     clear(listEl);
     const q = normName(view.search);
-    let items = currentCallings(callings(ctx)).filter((c) => !q || normName(`${c.member_name} ${c.calling} ${c.organization}`).includes(q));
+    let items = currentCallings(callings(ctx)).filter((c) => !q || normName(`${c.member_name} ${c.calling} ${c.organization}`).includes(q))
+      .sort((a, b) => orgRank(a.organization) - orgRank(b.organization));
     if (!items.length) {
-      listEl.append(h('p', { class: 'empty', text: callings(ctx).length ? 'No current callings match.' : 'No callings yet. Import the LCR callings report on the Import screen, or propose a calling.' }));
+      listEl.append(h('p', { class: 'empty', text: callings(ctx).length ? 'No current callings match.' : 'No callings yet. Import the LCR callings report (LCR import), or propose a calling.' }));
       return;
     }
     if (view.sort === 'tenure') {
@@ -246,18 +264,29 @@ function renderPipeline(root, ctx) {
 }
 
 function renderSunday(root, ctx) {
-  const { releases, sustainings } = sundayBusiness(callings(ctx));
+  const business = sundayBusiness(callings(ctx));
+  // Handbook 30.8.1: most callings are sustained by ward members in sacrament meeting; some are
+  // presented in a quorum or Young Women meeting; stake and temple callings are not sustained in the ward.
+  const where = (c) => sustainedIn(c.calling, c.organization);
+  const releases = business.releases.filter((c) => where(c) === 'sacrament');
+  const sustainings = business.sustainings.filter((c) => where(c) === 'sacrament');
+  const elsewhere = [...business.releases, ...business.sustainings].filter((c) => where(c) === 'quorum' || where(c) === 'class');
   const date = h('input', { type: 'date', value: sundayDefault(ctx), 'aria-label': 'Sunday' });
   const pick = (c) => ({ c, box: h('input', { type: 'checkbox', checked: true }) });
   const rel = releases.map(pick);
   const sus = sustainings.map(pick);
+  const els = elsewhere.map(pick);
+  const isRelease = (c) => business.releases.includes(c);
   const line = ({ c, box }) => h('li', { class: 'row' }, h('label', { class: 'check' }, box, ` ${c.member_name} — ${c.calling}${c.organization ? ` (${c.organization})` : ''}`));
+  const elsewhereLine = ({ c, box }) => h('li', { class: 'row' }, h('label', { class: 'check' }, box,
+    ` ${isRelease(c) ? 'Release' : 'Sustain'}: ${c.member_name} — ${c.calling} (${where(c) === 'class' ? 'Young Women meeting' : 'quorum meeting'})`));
   const mark = h('button', { text: 'Mark checked ones as done' });
   mark.addEventListener('click', () => busy(mark, async () => {
     if (!date.value) throw new Error('Choose the Sunday.');
     const changes = [
       ...rel.filter((x) => x.box.checked).map(({ c }) => ({ id: c.id, fields: { released_on: date.value } })),
       ...sus.filter((x) => x.box.checked).map(({ c }) => ({ id: c.id, fields: { sustained_on: date.value } })),
+      ...els.filter((x) => x.box.checked).map(({ c }) => ({ id: c.id, fields: isRelease(c) ? { released_on: date.value } : { sustained_on: date.value } })),
     ];
     if (!changes.length) throw new Error('Nothing is checked.');
     await ctx.store.update('Callings', changes);
@@ -271,7 +300,10 @@ function renderSunday(root, ctx) {
     rel.length ? h('ul', { class: 'rows' }, rel.map(line)) : h('p', { class: 'empty', text: 'No releases to read.' }),
     h('h3', { text: `To sustain (${sus.length})` }),
     sus.length ? h('ul', { class: 'rows' }, sus.map(line)) : h('p', { class: 'empty', text: 'No callings to sustain.' }),
-    rel.length || sus.length ? mark : null);
+    els.length ? h('h3', { text: `In a quorum or Young Women meeting (${els.length})` }) : null,
+    els.length ? h('p', { class: 'hint', text: 'These are presented to the quorum or age group, not in sacrament meeting (General Handbook 30.8.1).' }) : null,
+    els.length ? h('ul', { class: 'rows' }, els.map(elsewhereLine)) : null,
+    rel.length || sus.length || els.length ? mark : null);
 }
 
 function renderTasks(root, ctx) {
@@ -283,7 +315,8 @@ function renderTasks(root, ctx) {
   const group = (title, list, emptyText, showBy) => [
     h('h3', { class: 'date-head', text: `${title} (${list.length})` }),
     list.length ? h('ul', { class: 'cards' }, list.map((t) => h('li', {}, h('button', { class: 'card', onclick: () => openCalling(t.calling.id, ctx) },
-      h('span', { class: 'card-top' }, h('span', { class: 'name', text: STEPS[t.step].label }), showBy && t.by ? h('span', { class: 'badge new', text: t.by }) : null),
+      h('span', { class: 'card-top' }, h('span', { class: 'name', text: STEPS[t.step].label }), showBy && t.by ? h('span', { class: 'badge new', text: t.by }) : null,
+        t.step === 'set_apart' && setApartByStake(t.calling.calling, t.calling.organization) ? h('span', { class: 'badge muted', text: 'stake sets apart' }) : null),
       h('span', { class: 'meta', text: `${t.calling.member_name} · ${t.calling.calling}` }))))) : h('p', { class: 'empty', text: emptyText }),
   ];
   add(root,
@@ -335,11 +368,13 @@ export const callingsFeature = {
   group: 'Callings',
   tables,
   views: [
+    { id: 'orgchart', label: 'Org chart', title: 'Organization chart', render: (root, ctx) => renderOrgChart(root, ctx, { openCalling }) },
     { id: 'callings', label: 'Current', title: 'Current callings', render: renderCurrent },
     { id: 'pipeline', label: 'In progress', title: 'Calls and releases in progress', render: renderPipeline },
     { id: 'sunday', label: 'Sunday', title: 'Sunday business', render: renderSunday },
     { id: 'tasks', label: 'My tasks', title: 'My tasks', render: renderTasks },
     { id: 'nocalling', label: 'No calling', title: 'Members with no calling', render: renderNoCalling },
+    { id: 'lcrimport', label: 'LCR import', title: 'Import the LCR callings report', render: (root, ctx) => renderLcrImport(root, ctx, { go: ctx.go }) },
   ],
   memberSections,
 };
