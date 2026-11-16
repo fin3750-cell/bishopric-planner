@@ -1,0 +1,14 @@
+# Never commit member data. The data lives in the shared Google Sheet only.
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.mp4
+*.mov
+data/
+private/
+# Local tooling output
+node_modules/
+test-results/
+screenshots/
+.DS_Store
