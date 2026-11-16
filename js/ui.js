@@ -12,6 +12,12 @@ export function h(tag, attrs = {}, ...children) {
     else if (v === true) el.setAttribute(k, '');
     else el.setAttribute(k, v);
   }
+  return add(el, children);
+}
+
+// Appends children to an element: nested lists are unpacked and null/undefined/false are skipped.
+// Use this instead of the browser's el.append(), which would print them as text.
+export function add(el, ...children) {
   for (const c of children.flat(Infinity)) {
     if (c === null || c === undefined || c === false) continue;
     el.append(c instanceof Node ? c : document.createTextNode(String(c)));

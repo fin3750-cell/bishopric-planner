@@ -28,7 +28,7 @@ export function renderSettings(root, ctx) {
     ctx.applySettings(next);
   });
   root.append(
-    field('Google Sheet link', sheet, 'The shared "Speaker Planner Data" Sheet. Only people it is shared with can open it.'),
+    field('Google Sheet link', sheet, 'The bishopric\'s planner Sheet. Only people it is shared with can open it.'),
     field('Google client ID', client, CLIENT_ID ? 'Set in the app.' : 'From Google Cloud Console. Not a secret.'),
     field('Your initials', initials, 'Saved with each talk or decline you record.'),
     field('Look-back window (years)', windowYears, 'People with a talk inside this window are left off "Who to ask".'),

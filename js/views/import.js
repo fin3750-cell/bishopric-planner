@@ -3,7 +3,7 @@
 
 import { formatDate } from '../dates.js';
 import { parseMemberList, diffImport, makeId } from '../members.js';
-import { h, clear, busy, toast } from '../ui.js';
+import { h, add, clear, busy, toast } from '../ui.js';
 
 export function renderImport(root, ctx) {
   const text = h('textarea', { rows: 8, placeholder: 'Paste the member list here (Name, Gender, Age on each line)…', 'aria-label': 'Member list text' });
@@ -60,7 +60,7 @@ function showPreview(preview, raw, ctx) {
     ctx.go('members');
   }).catch(() => {}));
 
-  preview.append(
+  add(preview,
     h('h3', { text: 'What changed' }),
     h('p', { class: countOk ? 'summary' : 'error', text: `${parsed.rows.length} people read from the list${parsed.declared !== null ? ` (the list says ${parsed.declared})` : ''}.${countOk ? '' : ' These do not match: some lines were not understood. Check before applying.'}` }),
     h('ul', { class: 'plain' },

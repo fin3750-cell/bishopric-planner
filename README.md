@@ -1,7 +1,10 @@
 # Bishopric Planner
 
-An installable web app (PWA) for a bishopric to plan sacrament meeting speakers. It works from a
-Google Sheet shared by the bishopric. The app shows:
+An installable web app (PWA) for a bishopric to plan sacrament meeting speakers and callings. It
+works from a Google Sheet shared by the bishopric. The tabs along the top are **Speakers**,
+**Callings**, **Members**, **Import** and **Settings**.
+
+**Speakers**
 
 - **Who to ask:** members who have not spoken within the look-back window (default 3 years).
   "Ask soon" people come first, then people with no talk on record, then the people whose last
@@ -16,7 +19,29 @@ Google Sheet shared by the bishopric. The app shows:
 Declines are recorded with a date. A decline made after a person's last talk highlights them in
 amber on the list. The decline does not hide them.
 
-The app is built so features can be added. Callings are planned next (see [Roadmap](#roadmap)).
+**Callings**
+- **Org chart:** each ward organization with its standard positions and who holds them, then the
+  organization's other callings. Positions no one holds show "No one called" in gray, and
+  positions the handbook calls only if needed are marked "(optional)". Stake and temple callings,
+  and callings the bishopric marked as serving in another unit, are under "Serving outside the ward".
+- **Current:** who holds each calling and for how long, counted from the date sustained. Grouped
+  by organization, or sorted longest-serving first.
+- **In progress:** every call and release that still has a step to do, grouped by its next step.
+- **Sunday:** business for sacrament meeting. Releases to read come first (once the member has been
+  told), then callings to sustain (once accepted). Mark them done for that Sunday in one tap.
+- **My tasks:** the steps assigned to your initials, plus steps nobody has been assigned yet.
+- **No calling:** active members (adults, or 12+) with no current or proposed calling.
+- **LCR import:** paste the LCR callings report (each calling with its date sustained and Set
+  Apart Yes/No), or choose a CSV. You review what will change before it is saved.
+- **Sunday:** callings presented in a quorum or Young Women meeting are listed separately from
+  sacrament meeting business.
+
+The steps tracked for a call are: proposed → asked → accepted or declined → sustained → set apart
+and recorded in LCR (in either order). For a release: decided → member told → released in
+sacrament meeting → recorded in LCR. Asking, setting apart, recording in LCR and telling a member
+about a release can each be assigned to someone's initials.
+
+The app is built so more features can be added (see [Adding a feature](#adding-a-feature)).
 
 ## Privacy and data
 
@@ -38,7 +63,8 @@ The app is built so features can be added. Callings are planned next (see [Roadm
    1. Create a project, for example "Bishopric Planner".
    2. Enable the **Google Sheets API**.
    3. Set up the consent screen (Google Auth Platform). Choose an **External** audience and leave the
-      publishing status as **Testing**. Add each bishopric member's Google account as a **test user**.
+      publishing status as **Testing**. Add the Google account of **everyone the Sheet is shared
+      with** as a **test user**. Anyone not on that list cannot sign in.
    4. Create an **OAuth client**: type **Web application**. Under Authorized JavaScript origins, add
       `https://fin3750-cell.github.io`.
    5. Copy the **Client ID** into `config.js` (`CLIENT_ID`), or paste it on each phone's Settings
@@ -65,8 +91,27 @@ The app is built so features can be added. Callings are planned next (see [Roadm
   - *Do not ask* and *Moved* people never appear on *Who to ask*. To see them, use the Members
     screen's filter.
 - **Visitors:** on *History*, add talks by stake leaders, missionaries and other visitors.
-- **Mistakes:** **Remove** marks a talk or decline as removed (`void` = TRUE in the Sheet). The row
-  stays in the Sheet for history.
+- **Mistakes:** **Remove** marks a talk, decline or calling as removed (`void` = TRUE in the Sheet).
+  The row stays in the Sheet for history. On a calling's page, **Undo** clears one step's date.
+- **A new calling:** tap **Propose a calling** (on the Callings screens or a member's page), then
+  choose the member, organization and calling, and who will ask. It then appears under In progress
+  and in that person's My tasks.
+  - Open it to record each step as it happens.
+  - Once it is accepted it shows on the Sunday screen. Tap **Mark checked ones as done** after
+    sacrament meeting.
+  - After sustaining, record **Set apart** and **Recorded in LCR**.
+- **The LCR callings report:** run it in LCR, copy all its text, paste it on **Callings → LCR import**
+  and tap **Check report**.
+  - New callings are added as sustained and recorded in LCR.
+  - "Set apart: Yes" uses the sustained date, because the report has no set-apart date.
+  - Callings already in the Sheet only get missing dates filled in, so the same report can be
+    imported again safely.
+  - A line repeated at a page break is left out unless you check it.
+  - Names not in Members are listed and not imported.
+  - Current callings missing from the report can be marked released.
+  - The organization comes from the calling's name. You can change it on the calling's page.
+- **A release:** open the current calling and tap **Start release**. Record when the member is told;
+  the release then appears on the Sunday screen. Afterwards, record it in LCR.
 - **Monthly:** open the Member List and copy all its text (or save it as a text file). Paste it on
   *Import*, choose **Check list**, review the changes and **Apply**.
   - Everyone already in the Sheet gets their age refreshed.
@@ -85,6 +130,17 @@ it needs is missing, the app adds it when it loads.
 | Members | id, name ("Last, First"), gender, age, age_as_of, source, status (active/moved), notes, category (ask_soon/not_now/do_not_ask), category_until, moved_in, last_in_list |
 | Talks | id, date, date_estimated, member_id, member_name, name_as_shown, ward_member, source, entered_by, entered_at, notes, void |
 | Refusals | id, date, member_id, member_name, note, entered_by, entered_at, void |
+| Callings | id, member_id, member_name, organization, calling, proposed_on, extend_by, extended_on, accepted_on, declined_on, sustained_on, set_apart_by, set_apart_on, record_by, recorded_on, release_proposed_on, release_by, release_informed_on, released_on, release_record_by, release_recorded_on, source, notes, entered_by, entered_at, void |
+
+Each Callings row is one person in one calling, from proposal to release. A later step implies the
+earlier ones, so a calling entered as already sustained is not listed as "to ask".
+
+**Handbook guidance.** The organization chart's standard positions, where each calling is sustained
+(sacrament meeting, or a quorum or Young Women meeting), and who approves and sets apart each
+calling come from the General Handbook, section 30.8.1 "Ward Callings". Sections 8.3.4, 9.3.3,
+12.1.3, 13.2.2 and 13.7.2 are also used, for optional secretaries and counselors, the nursery and the
+resource center. The sections are cited in `js/features/callings-orgs.js`. They were read on
+16 Nov 2026, so check them again if the handbook is updated.
 
 Notes on the data:
 
@@ -119,13 +175,14 @@ js/sheets.js                       Google Sheets API calls
 js/store.js                        tabs as tables of records; adds missing tabs and columns
 js/members.js, js/dates.js         pure helpers (tested)
 js/views/                          Members, Import and Settings screens
-js/features/                       one module per feature (speakers.js, speakers-logic.js)
+js/features/                       one module per feature (speakers, callings), with pure rules in
+                                   *-logic.js, callings-orgs.js (handbook) and callings-import.js
 ```
 
 ### Adding a feature
 
-Create `js/features/<name>.js` exporting `{ id, tables, views, memberSections }`, using
-`speakers.js` as the pattern, and add it to `js/features/index.js`.
+Create `js/features/<name>.js` exporting `{ id, group, tables, views, memberSections }`, using
+`speakers.js` or `callings.js` as the pattern, and add it to `js/features/index.js`.
 
 - `tables` declares the tabs and columns the feature needs. They are created in the Sheet
   automatically.
@@ -137,16 +194,6 @@ any new files to `SHELL` in `sw.js` and raise the `CACHE` version.
 
 ## Roadmap
 
-**Callings** (planned). Proposed tabs:
-
-- `Callings`: id, organization, calling, notes.
-- `CallingChanges`: id, member_id, member_name, calling_id, calling_name, kind (call/release),
-  proposed_on, extended_on (asked), accepted_on or declined_on, sustained_on, set_apart_on,
-  recorded_in_lcr_on, released_on, notes, entered_by, entered_at, void.
-
-Planned screens:
-
-- **Pipeline:** each change grouped by its next step (to extend, awaiting answer, to sustain, to set
-  apart, to record in LCR).
-- **Current callings:** who holds each calling, and for how long (time since sustained).
-- On a member's page: their callings and calling history.
+- **Releases to consider:** an option to highlight callings held longer than a chosen number of years.
+- **Monthly callings check:** remind the bishopric to import the LCR callings report and the member
+  list.

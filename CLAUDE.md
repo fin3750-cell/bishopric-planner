@@ -1,6 +1,6 @@
 # Instructions for Claude: Bishopric Planner
 
-A PWA for a bishopric (three people) to plan sacrament meeting speakers, with callings planned next.
+A PWA for a bishopric to plan sacrament meeting speakers and track callings (calls, releases, time in calling).
 The data lives in a shared Google Sheet. README.md describes the setup, the Sheet's columns and
 how to add a feature.
 
@@ -18,6 +18,9 @@ how to add a feature.
 - Find Sheet columns by header name, never by position. To change a row, find it by its `id`
   (`Store.update` re-reads the id column first), because the Sheet can be sorted by hand.
 - Don't delete rows. Mark mistakes with `void` = TRUE.
+- Church guidance (organizations, who sustains and sets apart) lives in `js/features/callings-orgs.js`
+  with the General Handbook section for each rule. Don't add rules from memory: read the handbook
+  section first and cite it there.
 
 ## Working on it
 
@@ -27,7 +30,9 @@ how to add a feature.
   and a fake in-memory Sheet.
 - When you add or rename a file, update `SHELL` in `sw.js` and raise the `CACHE` version so phones
   pick up the change.
-- New features go in `js/features/` with `{ id, tables, views, memberSections }`, then get
+- New features go in `js/features/` with `{ id, group, tables, views, memberSections }`, then get
   registered in `js/features/index.js`.
+- Append page content with `h()` or `add()` from `js/ui.js`, not the browser's `el.append()` with
+  lists or null: `append` prints them as text ("[object …]", "null").
 - The user teaches college finance, reads code, and wants verified results. Say when something is
   a guess or untested, for example sign-in in an iPhone home-screen app.

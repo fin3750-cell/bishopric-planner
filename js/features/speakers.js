@@ -192,6 +192,7 @@ function memberSections(m, ctx, close) {
 
 export const speakers = {
   id: 'speakers',
+  group: 'Speakers',
   tables,
   views: [
     { id: 'ask', label: 'Who to ask', render: renderAsk },
