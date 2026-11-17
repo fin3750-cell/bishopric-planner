@@ -26,10 +26,17 @@ amber on the list. The decline does not hide them.
   and callings the bishopric marked as serving in another unit, are under "Serving outside the ward".
 - **Current:** who holds each calling and for how long, counted from the date sustained. Grouped
   by organization, or sorted longest-serving first.
-- **In progress:** every call and release that still has a step to do, grouped by its next step.
+- **In progress:** one screen with a section for each stage of a call, in order, each with a count:
+  **Proposed** (no votes yet), **Vote** (votes so far, and who is still to vote), **Bishop
+  Approved** (choose who will ask), **Assigned** (being asked), **Sustain** (accepted; where each is
+  sustained, from the Sunday rules), **Sustained/LCR Record**, **Releases**, and **Needs set apart**
+  last, closed until you open it. Each calling is in one section only. The Assigned section also
+  holds the free to-dos ("Other tasks"), with a form anyone can use to add one.
 - **Sunday:** business for sacrament meeting. Releases to read come first (once the member has been
   told), then callings to sustain (once accepted). Mark them done for that Sunday in one tap.
-- **My tasks:** the steps assigned to your initials, plus steps nobody has been assigned yet.
+- **My tasks:** your votes still to cast, the calls you were assigned to extend (with **Accepted** /
+  **Declined**), your to-dos (with a Done box), other steps assigned to you (record in LCR, set
+  apart, releases), and to-dos nobody has yet.
 - **No calling:** active members (adults, or 12+) with no current or proposed calling.
 - **LCR import:** paste the LCR callings report (each calling with its date sustained and Set
   Apart Yes/No), or choose a CSV. You review what will change before it is saved.
@@ -40,10 +47,13 @@ amber on the list. The decline does not hide them.
 role. It's saved in the Sheet's Bishopric tab, so everyone shares one list. **Fill from org chart**
 adds the current bishop, counselors and executive secretary from the Callings tab; others can be
 added by hand. Once the list exists, "Your initials" and every "Who" box are menus of these names
-(plus "Stake"), and My tasks shows the name with the initials. Remove sets `active` = FALSE.
+(plus "Stake" for calling steps), and My tasks shows the name with the initials. Remove sets
+`active` = FALSE. **Votes** is checked for everyone who votes on proposed callings; uncheck anyone
+who does not (the `votes` column is then FALSE).
 
-The steps tracked for a call are: proposed → asked → accepted or declined → sustained → set apart
-and recorded in LCR (in either order). For a release: decided → member told → released in
+The steps tracked for a call are: proposed → each person on the voting list votes (Support or
+Don't support) → the bishop approves or does not → someone is chosen to ask → accepted or declined
+→ sustained → recorded in LCR → set apart. For a release: decided → member told → released in
 sacrament meeting → recorded in LCR. Asking, setting apart, recording in LCR and telling a member
 about a release can each be assigned to someone's initials.
 
@@ -114,12 +124,21 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
 - **Mistakes:** **Remove** marks a talk, decline or calling as removed (`void` = TRUE in the Sheet).
   The row stays in the Sheet for history. On a calling's page, **Undo** clears one step's date.
 - **A new calling:** tap **Propose a calling** (on the Callings screens or a member's page), then
-  choose the member, organization and calling, and who will ask. It then appears under In progress
-  and in that person's My tasks.
-  - Open it to record each step as it happens.
-  - Once it is accepted it shows on the Sunday screen. Tap **Mark checked ones as done** after
-    sacrament meeting.
-  - After sustaining, record **Set apart** and **Recorded in LCR**.
+  choose the member, organization and calling. It appears under **Proposed** on In progress, and
+  under "Votes waiting for you" on each voter's My tasks.
+  - **Vote:** open it and tap **Support** or **Don't support**. You record only your own vote; tap
+    your vote again to clear it. A vote from another phone shows after **Reload data** (Settings).
+  - **Bishop approval:** tap **Approved** or **Not approved**. If someone on the voting list has not
+    voted, the app asks before recording an approval. Not approved closes the calling.
+  - **Who will ask:** under Bishop Approved, choose the person. It moves to Assigned and to that
+    person's My tasks, where they tap **Accepted** (it moves to Sustain and the Sunday screen) or
+    **Declined** (it closes and stays in the Sheet).
+  - Tap **Mark checked ones as done** on the Sunday screen after sacrament meeting.
+  - After sustaining, record **Recorded in LCR** and **Set apart** on the calling's page.
+- **Other tasks:** under In progress → Assigned, type the task, choose who has it and, if you want,
+  a due date, then tap **Add task**. It shows on that person's My tasks; check **Done** when finished.
+  Tasks done in the last 30 days are listed under the form, so a box checked by mistake can be
+  unchecked.
 - **The LCR callings report:** run it in LCR, copy all its text, paste it on **Callings → LCR import**
   and tap **Check report**.
   - New callings are added as sustained and recorded in LCR.
@@ -150,11 +169,15 @@ it needs is missing, the app adds it when it loads.
 | Members | id, name ("Last, First"), gender, age, age_as_of, source, status (active/moved), notes, category (ask_soon / not_now / do_not_ask = "Shouldn't ask" / wont_accept), category_until, moved_in, last_in_list |
 | Talks | id, date, date_estimated, member_id, member_name, name_as_shown, ward_member, source, entered_by, entered_at, notes, void |
 | Refusals | id, date, member_id, member_name, note, entered_by, entered_at, void |
-| Bishopric | id, initials, name, role, member_id, active, email (Google account, linked at first sign-in) |
-| Callings | id, member_id, member_name, organization, calling, proposed_on, extend_by, extended_on, accepted_on, declined_on, sustained_on, set_apart_by, set_apart_on, record_by, recorded_on, release_proposed_on, release_by, release_informed_on, released_on, release_record_by, release_recorded_on, source, notes, entered_by, entered_at, void |
+| Bishopric | id, initials, name, role, member_id, active, email (Google account, linked at first sign-in), votes (FALSE = does not vote on callings) |
+| Callings | id, member_id, member_name, organization, calling, proposed_on, approved_on, approved_by (who recorded the bishop's decision), not_approved_on, extend_by, extended_on, accepted_on, declined_on, sustained_on, set_apart_by, set_apart_on, record_by, recorded_on, release_proposed_on, release_by, release_informed_on, released_on, release_record_by, release_recorded_on, source, notes, entered_by, entered_at, void |
+| Votes | id, calling_id, voter (initials), vote (support / oppose), voted_on, entered_at, void |
+| Tasks | id, description, assigned_to, due_on, done_on, done_by, entered_by, entered_at, void |
 
 Each Callings row is one person in one calling, from proposal to release. A later step implies the
-earlier ones, so a calling entered as already sustained is not listed as "to ask".
+earlier ones, so a calling entered as already sustained is not listed as needing a vote. Callings
+recorded as asked (`extended_on`) before the approval step existed count as approved. Each person
+has one Votes row per calling; changing a vote updates that row.
 
 **Handbook guidance.** The organization chart's standard positions, where each calling is sustained
 (sacrament meeting, or a quorum or Young Women meeting), and who approves and sets apart each

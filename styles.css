@@ -190,6 +190,22 @@ details.org summary { font-size: 1.05rem; }
 .vacant { flex: 2 1 12em; color: var(--muted); font-style: italic; }
 .handbook { font-size: 0.85rem; }
 
+/* Callings: In progress sections, controls under a card, to-dos */
+.stage { margin: 4px 0 10px; }
+.stage-head { font-size: 1.05rem; margin: 18px 0 4px; color: var(--text); }
+details.stage { border-top: 1px solid var(--line); margin-top: 18px; }
+details.stage > summary { cursor: pointer; padding: 6px 0; }
+details.stage > summary.stage-head { margin: 8px 0 4px; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 2px 2px; }
+.card-actions select { min-width: 0; max-width: 100%; }
+.todos { margin-top: 10px; }
+.todos h4 { margin: 10px 0 4px; font-size: 0.98rem; }
+.row.todo .check { flex: 1 1 12em; align-items: flex-start; }
+.row.todo .check input { margin-top: 0.2em; flex: none; }
+details.done-list { margin-top: 10px; }
+details.done-list summary { cursor: pointer; color: var(--muted); }
+a.button.secondary-link { background: transparent; color: var(--accent); border: 1px solid var(--line); padding: 5px 10px; font-size: 0.9rem; margin-top: 8px; }
+
 /* "Shouldn't ask" / "Won't accept" on Who to ask, and people found by search who are not on the list */
 .card.is-muted { opacity: 0.62; border-left-color: var(--line); }
 .badge.cat-wont_accept { background: var(--line); color: var(--text); }
