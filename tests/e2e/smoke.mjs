@@ -184,12 +184,12 @@ step('search finds a scheduled person with the reason; "Won\'t accept" joins the
 // 5c. Everyone: every member colored by how long since they spoke; "Ask soon" (your pick) is yellow
 await go('Everyone', 'Everyone, by color');
 const chips = () => page.$$eval('#view .key-chip', (els) => els.map((e) => e.textContent));
-assert.deepEqual(await chips(), ['Ask soon (your pick) (0)', 'No talk in 3 years (2)', 'Spoke 2–3 years ago (0)', 'Spoke 1–2 years ago (1)',
-  'Spoke within 1 year, or scheduled (1)', "Shouldn't ask / Won't accept (2)"]);
+assert.deepEqual(await chips(), ['Ask soon (your pick) (0)', 'No talk on record (1)', 'Spoke more than 3 years ago (1)', 'Spoke 2–3 years ago (0)',
+  'Spoke 1–2 years ago (1)', 'Spoke within 1 year, or scheduled (1)', "Shouldn't ask / Won't accept (2)"]);
 assert.deepEqual(await names(), ['Arbor, Amy', 'Birch, Ben', 'Cedar, Cora', 'Dogwood, Dan', 'Elmwood, Eli', 'Firwood, Fay']);
 const tone = async (name) => (await page.locator('#view .card', { hasText: name }).getAttribute('class')).replace('card ', '');
 assert.deepEqual([await tone('Arbor, Amy'), await tone('Birch, Ben'), await tone('Cedar, Cora'), await tone('Dogwood, Dan'), await tone('Elmwood, Eli'), await tone('Firwood, Fay')],
-  ['tone-none', 'tone-green2', 'tone-none', 'tone-green1', 'tone-red', 'tone-red']);
+  ['tone-none', 'tone-green2', 'tone-older', 'tone-green1', 'tone-red', 'tone-red']);   // Cedar's only talk is from Jan 2023
 assert.ok((await page.locator('#view .card', { hasText: 'Dogwood, Dan' }).textContent()).includes('Scheduled 22 Nov 2026'));
 assert.ok((await page.locator('#view .card', { hasText: 'Arbor, Amy' }).textContent()).includes('Declined 16 Nov 2026'));
 await page.locator('#view .key-chip', { hasText: "Shouldn't ask" }).click();

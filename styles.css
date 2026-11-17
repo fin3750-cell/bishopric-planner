@@ -23,6 +23,7 @@
   --g1-bg: #bfe5cc; --g1-line: #1e7a46;
   --g2-bg: #d9f0e0; --g2-line: #4ea872;
   --g3-bg: #eef8f1; --g3-line: #a3d4b5;
+  --o-bg: #dde8f7; --o-line: #4a78b5;
   --y-bg: #fff0b3; --y-line: #d4a300;
   --r-bg: #f7d4d4; --r-line: #c0392b;
   color-scheme: light;
@@ -52,6 +53,7 @@
     --g1-bg: #1d4a30; --g1-line: #5fd08f;
     --g2-bg: #173826; --g2-line: #3d9a66;
     --g3-bg: #12281b; --g3-line: #2a6b46;
+    --o-bg: #1b2840; --o-line: #6f97d8;
     --y-bg: #3f3510; --y-line: #e6c440;
     --r-bg: #401c1c; --r-line: #e57373;
     color-scheme: dark;
@@ -223,6 +225,7 @@ a.button.secondary-link { background: transparent; color: var(--accent); border:
 .card.tone-green3, .swatch.tone-green3 { background: var(--g3-bg); border-left-color: var(--g3-line); }
 .card.tone-yellow, .swatch.tone-yellow { background: var(--y-bg); border-left-color: var(--y-line); }
 .card.tone-red, .swatch.tone-red { background: var(--r-bg); border-left-color: var(--r-line); }
+.card.tone-older, .swatch.tone-older { background: var(--o-bg); border-left-color: var(--o-line); }
 .swatch.tone-none { background: var(--surface); border-left-color: var(--line); }
 .key { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .key-chip {

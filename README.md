@@ -16,8 +16,9 @@ works from a Google Sheet shared by the bishopric. The tabs along the top are **
   - **Yellow** for people you marked *Ask soon*. This is your pick, set on the person's page. The
     member import also marks new move-ins *Ask soon*. Recording a talk for someone marked *Ask
     soon* removes the label, so they turn green.
+  - **Blue** for those who spoke, but only before the look-back window (more than 3 years ago).
   - **Red** for *Shouldn't ask* or *Won't accept*.
-  - **No color** for no talk within the window and no label.
+  - **No color** for no talk on record and no label.
 
   Your labels decide the color before talks do. The color key at the top shows counts; tap a color
   to show only those people. Sort A to Z, longest since a talk first, or by color. If the talk
