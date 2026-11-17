@@ -218,7 +218,7 @@ test('everyone: one color per person; labels win over talks; bands follow the lo
     { id: 'b', name: 'Birch, Ben', age: 50, age_as_of: T },                               // exactly 1 year ago -> green1
     { id: 'c', name: 'Cedar, Cora', age: 30, age_as_of: T },                              // 18 months ago -> green2
     { id: 'd', name: 'Dogwood, Dan', age: 70, age_as_of: T },                             // 30 months ago -> green3
-    { id: 'e', name: 'Elmwood, Eli', age: 60, age_as_of: T },                             // 4 years ago -> none
+    { id: 'e', name: 'Elmwood, Eli', age: 60, age_as_of: T },                             // 4 years ago -> older
     { id: 'f', name: 'Firwood, Fay', age: 33, age_as_of: T },                             // no talk -> none
     { id: 'g', name: 'Golf, Gus', age: 20, age_as_of: T, category: 'ask_soon' },          // picked, spoke recently -> yellow
     { id: 'h', name: 'Hazel, Hal', age: 45, age_as_of: T, category: 'wont_accept' },     // label, spoke recently -> red
@@ -235,9 +235,9 @@ test('everyone: one color per person; labels win over talks; bands follow the lo
   ];
   const res = everyoneList({ members, talks, refusals: [], today: T, settings: { windowYears: 3, minAge: 8 }, filters: {} });
   const color = Object.fromEntries(res.rows.map((r) => [r.member.id, r.color]));
-  assert.deepEqual(color, { a: 'green1', b: 'green1', c: 'green2', d: 'green3', e: 'none', f: 'none', g: 'yellow', h: 'red', i: 'red', j: 'green1', k: 'none' });
+  assert.deepEqual(color, { a: 'green1', b: 'green1', c: 'green2', d: 'green3', e: 'older', f: 'none', g: 'yellow', h: 'red', i: 'red', j: 'green1', k: 'none' });
   assert.equal(res.total, 11);
-  assert.deepEqual(res.counts, { yellow: 1, none: 3, green3: 1, green2: 1, green1: 3, red: 2 });
+  assert.deepEqual(res.counts, { yellow: 1, none: 2, older: 1, green3: 1, green2: 1, green1: 3, red: 2 });
   assert.equal(res.rows.find((r) => r.member.id === 'k').notNow, true);
   assert.equal(res.historyStart, '');   // a talk from 2022 is on record: history covers the whole window
   const recentOnly = [...talks.filter((t) => t.date >= '2024-08-01'), { member_id: 'e', date: '2024-09-01', void: true }];
@@ -250,7 +250,7 @@ test('everyone: one color per person; labels win over talks; bands follow the lo
   const oldest = everyoneList({ members, talks, refusals: [], today: T, settings: { windowYears: 3, minAge: 8 }, filters: { sort: 'oldest' } });
   assert.deepEqual(oldest.rows.map((r) => r.member.id), ['f', 'i', 'k', 'e', 'd', 'c', 'b', 'h', 'g', 'a', 'j']);
   const byColor = everyoneList({ members, talks, refusals: [], today: T, settings: { windowYears: 3, minAge: 8 }, filters: { sort: 'color' } });
-  assert.deepEqual(byColor.rows.map((r) => r.color), ['yellow', 'none', 'none', 'none', 'green3', 'green2', 'green1', 'green1', 'green1', 'red', 'red']);
+  assert.deepEqual(byColor.rows.map((r) => r.color), ['yellow', 'none', 'none', 'older', 'green3', 'green2', 'green1', 'green1', 'green1', 'red', 'red']);
   const yellow = everyoneList({ members, talks, refusals: [], today: T, settings: { windowYears: 3, minAge: 8 }, filters: { color: 'yellow' } });
   assert.deepEqual(yellow.rows.map((r) => r.member.id), ['g']);
   assert.equal(yellow.counts.green1, 3);   // counts ignore the filter

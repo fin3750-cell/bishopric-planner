@@ -110,7 +110,8 @@ function range(a, b) {
 function colorLabels(bands) {
   return {
     yellow: 'Ask soon (your pick)',
-    none: `No talk in ${span(bands.months)}`,
+    none: 'No talk on record',
+    older: `Spoke more than ${span(bands.months)} ago`,
     green3: `Spoke ${range(bands.m2, bands.months)} ago`,
     green2: `Spoke ${range(bands.m1, bands.m2)} ago`,
     green1: `Spoke within ${span(bands.m1)}, or scheduled`,
@@ -166,7 +167,7 @@ function renderEveryone(root, ctx) {
   sort.addEventListener('change', () => { everyoneView.sort = sort.value; draw(); });
   root.append(
     h('div', { class: 'toolbar' }, search, sort),
-    h('p', { class: 'hint', text: `Every active member ${ctx.settings.minAge} and older. Green: spoke in the last ${ctx.settings.windowYears} years (a stronger green is more recent). Yellow: people you marked "Ask soon". Red: "Shouldn't ask" or "Won't accept". Your labels decide the color before talks do. Tap a name to open their page and change the label.` }),
+    h('p', { class: 'hint', text: `Every active member ${ctx.settings.minAge} and older. Green: spoke in the last ${ctx.settings.windowYears} years (a stronger green is more recent). Blue: spoke, but more than ${ctx.settings.windowYears} years ago. Yellow: people you marked "Ask soon". Red: "Shouldn't ask" or "Won't accept". Your labels decide the color before talks do. Tap a name to open their page and change the label.` }),
     keyEl, summaryEl, noteEl, listEl);
   draw();
 }

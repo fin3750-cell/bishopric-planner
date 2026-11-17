@@ -114,9 +114,10 @@ export function refusalsFor(memberId, refusals) {
 //   green1  spoke in the most recent third of the look-back window, or has a talk scheduled
 //   green2  spoke in the middle third
 //   green3  spoke in the oldest third
-//   none    no talk within the window and no label
+//   older   spoke, but only before the look-back window
+//   none    no talk on record and no label
 // Order used for the color key and for "By color".
-export const COLORS = ['yellow', 'none', 'green3', 'green2', 'green1', 'red'];
+export const COLORS = ['yellow', 'none', 'older', 'green3', 'green2', 'green1', 'red'];
 
 // Band edges for a look-back window: 3 years -> 12 and 24 months (1 and 2 years).
 export function colorBands(today, windowYears) {
@@ -132,6 +133,7 @@ export function colorOf(member, summary, bands) {
   if (summary.next || (summary.last && summary.last >= bands.b1)) return 'green1';
   if (summary.last && summary.last >= bands.b2) return 'green2';
   if (summary.last && summary.last >= bands.cutoff) return 'green3';
+  if (summary.last) return 'older';
   return 'none';
 }
 
