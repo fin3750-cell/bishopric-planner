@@ -45,16 +45,16 @@ test('stages of the In progress screen', () => {
 });
 
 test('who records callings in LCR: the setting, or else the Executive Secretary', () => {
-  const people = [{ initials: 'AA', role: 'Bishop' }, { initials: 'ts', role: 'First Counselor' }, { initials: 'DS', role: 'Executive Secretary' }];
-  assert.equal(recorderFrom(people, ''), 'DS');
+  const people = [{ initials: 'AA', role: 'Bishop' }, { initials: 'ts', role: 'First Counselor' }, { initials: 'EZ', role: 'Executive Secretary' }];
+  assert.equal(recorderFrom(people, ''), 'EZ');
   assert.equal(recorderFrom(people, 'ts'), 'TS');                 // a saved choice wins
   assert.equal(recorderFrom(people, 'NONE'), '');                 // "Nobody by default"
   assert.equal(recorderFrom(people.slice(0, 2), ''), '');         // no executive secretary on the list
   assert.equal(recorderFrom([...people, { initials: 'XS', role: 'Executive Secretary' }], ''), '');   // two: no guess
   // the default fills the LCR step only when the calling names nobody
   const c = { sustained_on: '2026-11-08' };
-  assert.deepEqual(callingState(c, { record: 'DS' }).tasks.map((t) => `${t.step}:${t.by}`), ['record:DS', 'set_apart:']);
-  assert.deepEqual(callingState({ ...c, record_by: 'ts' }, { record: 'DS' }).tasks.map((t) => `${t.step}:${t.by}`), ['record:TS', 'set_apart:']);
+  assert.deepEqual(callingState(c, { record: 'EZ' }).tasks.map((t) => `${t.step}:${t.by}`), ['record:EZ', 'set_apart:']);
+  assert.deepEqual(callingState({ ...c, record_by: 'ts' }, { record: 'EZ' }).tasks.map((t) => `${t.step}:${t.by}`), ['record:TS', 'set_apart:']);
 });
 
 test('pipeline groups every calling in progress into one stage', () => {
@@ -102,8 +102,8 @@ test('my work: asks, other steps (with the LCR default) and to-dos', () => {
   assert.deepEqual(w.todos.map((t) => t.id), ['t1']);
   assert.deepEqual(w.unassignedTodos.map((t) => t.id), ['t2']);
   // the person who records callings in LCR gets every LCR step that names nobody
-  const ds = myWork({ callings: cs, todos, initials: 'DS', defaults: { record: 'DS' } });
-  assert.deepEqual(ds.steps.map((t) => `${t.calling.id}:${t.step}`), ['c6:record']);
+  const ez = myWork({ callings: cs, todos, initials: 'EZ', defaults: { record: 'EZ' } });
+  assert.deepEqual(ez.steps.map((t) => `${t.calling.id}:${t.step}`), ['c6:record']);
   // no initials: only the to-dos nobody has
   const none = myWork({ callings: cs, todos, initials: '' });
   assert.deepEqual([none.asks.length, none.steps.length, none.todos.length, none.unassignedTodos.length], [0, 0, 0, 1]);
@@ -156,7 +156,7 @@ test('time in calling', () => {
 
 const callings = [
   { id: 'c1', member_id: 'a', member_name: 'Arbor, Amy', organization: 'Primary', calling: 'Teacher', proposed_on: '2026-11-01', approved_on: '2026-11-02', extend_by: 'kw' },
-  { id: 'c2', member_id: 'b', member_name: 'Birch, Ben', organization: 'Sunday School', calling: 'Teacher', approved_on: '2026-11-02', accepted_on: '2026-11-05', extend_by: 'DS' },
+  { id: 'c2', member_id: 'b', member_name: 'Birch, Ben', organization: 'Sunday School', calling: 'Teacher', approved_on: '2026-11-02', accepted_on: '2026-11-05', extend_by: 'EZ' },
   { id: 'c3', member_id: 'c', member_name: 'Cedar, Cora', organization: 'Relief Society', calling: 'Secretary', sustained_on: '2023-02-05', set_apart_on: '2023-02-05', recorded_on: '2023-02-06', release_informed_on: '2026-11-10', release_proposed_on: '2026-11-01' },
   { id: 'c4', member_id: 'd', member_name: 'Dogwood, Dan', organization: 'Elders Quorum', calling: 'Secretary', sustained_on: '2026-11-08', recorded_on: '2026-11-09' },
   { id: 'c5', member_id: 'e', member_name: 'Elmwood, Eli', organization: 'Primary', calling: 'Teacher', approved_on: '2026-10-01', declined_on: '2026-10-02' },
