@@ -665,22 +665,20 @@ await page.getByText('Added: Ward Christmas party, 12 Dec 2026').waitFor();
 const party = page.locator('#view .cal-item', { hasText: 'Ward Christmas party' });
 assert.ok((await party.textContent()).includes('6:30 PM'));
 assert.ok(sheet.tabs.Events && sheet.tabs.Events.some((r) => r.includes('Ward Christmas party')));
-// Coming up: the next month as lines to copy; speakers and to-dos only when checked
+// Coming up: ward and stake events only (no fast Sundays, speakers, high council or other wards)
 const comingUp = () => page.getByLabel('Coming up text').inputValue();
 assert.ok((await page.textContent('#view .coming-up h3')).includes('16 Nov 2026 to 16 Dec 2026'));
-assert.equal(await comingUp(), 'Sun, Dec 6: Fast Sunday\nSat, Dec 12, 6:30 PM: Ward Christmas party');
-await page.getByLabel('Include Speakers').check();
-assert.equal(await comingUp(), 'Sun, Nov 22: Speakers: Dan Dogwood, Nora Newleaf\nSun, Dec 6: Fast Sunday\nSat, Dec 12, 6:30 PM: Ward Christmas party');
+assert.equal(await comingUp(), 'Sat, Dec 12, 6:30 PM: Ward Christmas party');
+assert.equal(await page.locator('#view .coming-up input[type=checkbox]').count(), 0);
 await page.locator('#view .coming-up').getByRole('button', { name: 'Copy' }).click();
-await page.getByText('Copied 3 lines').waitFor();
+await page.getByText('Copied 1 line').waitFor();
 assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await comingUp());
-await page.getByLabel('Include Speakers').uncheck();
 await page.getByLabel('Coming up dates').selectOption('weeks2');
 assert.equal(await comingUp(), 'Nothing on the calendar for these dates.');
 assert.ok(await page.locator('#view .coming-up').getByRole('button', { name: 'Copy' }).isDisabled());
 await page.getByLabel('Coming up dates').selectOption('nextMonth');
 assert.ok((await page.textContent('#view .coming-up h3')).includes('1 Dec 2026 to 31 Dec 2026'));
-assert.equal(await comingUp(), 'Sun, Dec 6: Fast Sunday\nSat, Dec 12, 6:30 PM: Ward Christmas party');
+assert.equal(await comingUp(), 'Sat, Dec 12, 6:30 PM: Ward Christmas party');
 await page.getByLabel('Coming up dates').selectOption('month');
 await noSideScroll('calendar');
 if (SHOTS) await page.screenshot({ path: `${SHOTS}/15-calendar.png`, fullPage: true });

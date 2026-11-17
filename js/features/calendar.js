@@ -16,7 +16,7 @@ const tables = { Events: { columns: EVENT_COLUMNS, dates: ['date'] } };
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const view = { months: 6, otherWards: false, range: 'month', include: { events: true, fast: true, notes: true, speakers: false, todos: false } };
+const view = { months: 6, otherWards: false, range: 'month' };
 
 // ---------- the stake Sheet, read once per session (or on Reload) ----------
 
@@ -123,24 +123,19 @@ function addEvent(ctx) {
   });
 }
 
-// "Coming up": the next weeks as plain text to copy into the bulletin or a correlation agenda.
-// Other wards' stake events are never included.
+// "Coming up": general ward information to copy into the bulletin or a correlation agenda: the
+// ward's own items and stake events (stake-wide and the ward's), not other wards' events, fast
+// Sundays, high council notes, speakers or to-dos.
 function comingUp(ctx, data) {
   const { from, to } = comingUpRange(ctx.today(), view.range);
   const items = calendarItems({
     from, to, stake: data, otherWards: false, events: ctx.store.records('Events'),
     talks: ctx.store.records('Talks'), todos: ctx.store.records('Tasks'),
   });
-  const text = comingUpText({ items, notes: monthNotes({ from, to, stake: data }), include: view.include });
+  const text = comingUpText({ items, include: { events: true } });
   const range = select([{ value: 'month', label: 'Next month' }, { value: 'weeks2', label: 'Next 2 weeks' }, { value: 'nextMonth', label: 'Next calendar month' }],
     view.range, { 'aria-label': 'Coming up dates' });
   range.addEventListener('change', () => { view.range = range.value; ctx.refresh(); });
-  const boxes = [['events', 'Events'], ['fast', 'Fast Sundays'], ['notes', 'High council and assignments'], ['speakers', 'Speakers'], ['todos', 'To-dos']]
-    .map(([k, label]) => {
-      const b = h('input', { type: 'checkbox', checked: view.include[k], 'aria-label': `Include ${label}` });
-      b.addEventListener('change', () => { view.include[k] = b.checked; ctx.refresh(); });
-      return h('label', { class: 'check' }, b, label);
-    });
   const lines = text ? text.split('\n').length : 0;
   const area = h('textarea', { readonly: true, rows: Math.min(14, Math.max(3, lines)), 'aria-label': 'Coming up text' });
   area.value = text || 'Nothing on the calendar for these dates.';
@@ -154,9 +149,8 @@ function comingUp(ctx, data) {
   return h('section', { class: 'panel coming-up' },
     h('h3', { text: `Coming up: ${formatDate(from)} to ${formatDate(to)}` }),
     h('div', { class: 'toolbar' }, range, copy),
-    h('div', { class: 'checks' }, boxes),
     area,
-    h('p', { class: 'hint', text: 'One line per item, ready to paste into the bulletin or a correlation agenda. Other wards\' events are never included.' }));
+    h('p', { class: 'hint', text: 'Ward and stake events, one line per item, ready to paste into the bulletin or a correlation agenda. Other wards\' events are left out.' }));
 }
 
 function renderCalendar(root, ctx) {
