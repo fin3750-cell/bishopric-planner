@@ -207,3 +207,54 @@ test('ask list: "Shouldn\'t ask" and "Won\'t accept" at the bottom; search shows
   const nn = buildAskList({ members, talks, refusals: [], today: TODAY, filters: { search: 'nownot' } });
   assert.deepEqual(nn.others.map((o) => [o.member.id, o.reason, o.date]), [['n', 'notNow', '2027-03-01']]);
 });
+
+test('everyone: one color per person; labels win over talks; bands follow the look-back window', async () => {
+  const { everyoneList, colorBands } = await import('../js/features/speakers-logic.js');
+  const T = '2026-11-16';
+  const b = colorBands(T, 3);
+  assert.deepEqual([b.m1, b.m2, b.months, b.b1, b.b2, b.cutoff], [12, 24, 36, '2025-11-16', '2024-11-16', '2023-11-16']);
+  const members = [
+    { id: 'a', name: 'Arbor, Amy', age: 40, age_as_of: T },                               // spoke 2 months ago -> green1
+    { id: 'b', name: 'Birch, Ben', age: 50, age_as_of: T },                               // exactly 1 year ago -> green1
+    { id: 'c', name: 'Cedar, Cora', age: 30, age_as_of: T },                              // 18 months ago -> green2
+    { id: 'd', name: 'Dogwood, Dan', age: 70, age_as_of: T },                             // 30 months ago -> green3
+    { id: 'e', name: 'Elmwood, Eli', age: 60, age_as_of: T },                             // 4 years ago -> none
+    { id: 'f', name: 'Firwood, Fay', age: 33, age_as_of: T },                             // no talk -> none
+    { id: 'g', name: 'Golf, Gus', age: 20, age_as_of: T, category: 'ask_soon' },          // picked, spoke recently -> yellow
+    { id: 'h', name: 'Hazel, Hal', age: 45, age_as_of: T, category: 'wont_accept' },     // label, spoke recently -> red
+    { id: 'i', name: 'Ivy, Ida', age: 52, age_as_of: T, category: 'do_not_ask' },         // red
+    { id: 'j', name: 'Juniper, Jo', age: 25, age_as_of: T },                              // scheduled -> green1
+    { id: 'k', name: 'Kapok, Kim', age: 22, age_as_of: T, category: 'not_now', category_until: '2027-01-01' },   // not now, no talk -> none
+    { id: 'l', name: 'Larch, Lu', age: 7, age_as_of: T },                                 // under 8: left out
+    { id: 'm', name: 'Maple, Mo', age: 40, age_as_of: T, status: 'moved' },               // moved: left out
+  ];
+  const talks = [
+    { member_id: 'a', date: '2026-09-13' }, { member_id: 'b', date: '2025-11-16' }, { member_id: 'c', date: '2025-05-18' },
+    { member_id: 'd', date: '2024-05-19' }, { member_id: 'e', date: '2022-10-02' }, { member_id: 'g', date: '2026-08-09' },
+    { member_id: 'h', date: '2026-07-12' }, { member_id: 'j', date: '2026-11-22' }, { member_id: 'c', date: '2026-01-04', void: true },
+  ];
+  const res = everyoneList({ members, talks, refusals: [], today: T, settings: { windowYears: 3, minAge: 8 }, filters: {} });
+  const color = Object.fromEntries(res.rows.map((r) => [r.member.id, r.color]));
+  assert.deepEqual(color, { a: 'green1', b: 'green1', c: 'green2', d: 'green3', e: 'none', f: 'none', g: 'yellow', h: 'red', i: 'red', j: 'green1', k: 'none' });
+  assert.equal(res.total, 11);
+  assert.deepEqual(res.counts, { yellow: 1, none: 3, green3: 1, green2: 1, green1: 3, red: 2 });
+  assert.equal(res.rows.find((r) => r.member.id === 'k').notNow, true);
+  assert.equal(res.historyStart, '');   // a talk from 2022 is on record: history covers the whole window
+  const recentOnly = [...talks.filter((t) => t.date >= '2024-08-01'), { member_id: 'e', date: '2024-09-01', void: true }];
+  const short = everyoneList({ members, talks: recentOnly, refusals: [], today: T, settings: { windowYears: 3 } });
+  assert.equal(short.historyStart, '2025-05-18');   // earliest talk on record, inside the window (the removed one is skipped)
+  // a day short of 1 year -> green2 (the band edge belongs to the newer shade)
+  const edge = everyoneList({ members: [members[1]], talks: [{ member_id: 'b', date: '2025-11-15' }], refusals: [], today: T, settings: { windowYears: 3 } });
+  assert.equal(edge.rows[0].color, 'green2');
+  // sorts and filters
+  const oldest = everyoneList({ members, talks, refusals: [], today: T, settings: { windowYears: 3, minAge: 8 }, filters: { sort: 'oldest' } });
+  assert.deepEqual(oldest.rows.map((r) => r.member.id), ['f', 'i', 'k', 'e', 'd', 'c', 'b', 'h', 'g', 'a', 'j']);
+  const byColor = everyoneList({ members, talks, refusals: [], today: T, settings: { windowYears: 3, minAge: 8 }, filters: { sort: 'color' } });
+  assert.deepEqual(byColor.rows.map((r) => r.color), ['yellow', 'none', 'none', 'none', 'green3', 'green2', 'green1', 'green1', 'green1', 'red', 'red']);
+  const yellow = everyoneList({ members, talks, refusals: [], today: T, settings: { windowYears: 3, minAge: 8 }, filters: { color: 'yellow' } });
+  assert.deepEqual(yellow.rows.map((r) => r.member.id), ['g']);
+  assert.equal(yellow.counts.green1, 3);   // counts ignore the filter
+  // a 2-year window: thirds of 24 months
+  const two = colorBands(T, 2);
+  assert.deepEqual([two.m1, two.m2, two.cutoff], [8, 16, '2024-11-16']);
+});

@@ -107,3 +107,71 @@ export function talksFor(memberId, talks) {
 export function refusalsFor(memberId, refusals) {
   return refusals.filter((r) => r.member_id === memberId && !isTrue(r.void)).sort((a, b) => b.date.localeCompare(a.date));
 }
+
+// ---------- Everyone: one color per person ----------
+//   red     "Shouldn't ask" or "Won't accept" (the bishopric's label wins over a recent talk)
+//   yellow  "Ask soon": the bishopric's pick (the member import also labels new move-ins)
+//   green1  spoke in the most recent third of the look-back window, or has a talk scheduled
+//   green2  spoke in the middle third
+//   green3  spoke in the oldest third
+//   none    no talk within the window and no label
+// Order used for the color key and for "By color".
+export const COLORS = ['yellow', 'none', 'green3', 'green2', 'green1', 'red'];
+
+// Band edges for a look-back window: 3 years -> 12 and 24 months (1 and 2 years).
+export function colorBands(today, windowYears) {
+  const months = Math.round((Number(windowYears) > 0 ? Number(windowYears) : 3) * 12);
+  const m1 = Math.round(months / 3);
+  const m2 = Math.round((months * 2) / 3);
+  return { months, m1, m2, b1: addMonths(today, -m1), b2: addMonths(today, -m2), cutoff: addMonths(today, -months) };
+}
+
+export function colorOf(member, summary, bands) {
+  if (BOTTOM_CATEGORIES.includes(member.category)) return 'red';
+  if (member.category === 'ask_soon') return 'yellow';
+  if (summary.next || (summary.last && summary.last >= bands.b1)) return 'green1';
+  if (summary.last && summary.last >= bands.b2) return 'green2';
+  if (summary.last && summary.last >= bands.cutoff) return 'green3';
+  return 'none';
+}
+
+// Every active member at least minAge (or age unknown), with a color.
+// counts: people per color before the search and color filter.
+// historyStart: the earliest talk on record when it is inside the window (older talks are unknown,
+// so "no talk" may not mean never); otherwise ''.
+// filters: search (name), color ('all' or a color), sort ('name' | 'oldest' | 'color').
+export function everyoneList({ members, talks, refusals, today, settings = {}, filters = {} }) {
+  const minAge = Number.isFinite(Number(settings.minAge)) ? Number(settings.minAge) : 8;
+  const bands = colorBands(today, settings.windowYears);
+  const sums = summarize(members, talks, refusals, today);
+  const all = [];
+  for (const m of members) {
+    if (!m.id || !m.name || !isActive(m)) continue;
+    const age = currentAge(m, today);
+    if (age !== null && age < minAge) continue;
+    const s = sums.get(m.id);
+    all.push({
+      member: m,
+      age,
+      color: colorOf(m, s, bands),
+      lastTalk: s.last,
+      lastEstimated: s.lastEstimated,
+      next: s.next,
+      talkCount: s.count,
+      declined: s.declined && (!s.last || s.declined > s.last) ? s.declined : '',
+      notNow: m.category === 'not_now' && (!m.category_until || m.category_until > today),
+    });
+  }
+  const counts = Object.fromEntries(COLORS.map((c) => [c, all.filter((r) => r.color === c).length]));
+  const q = normName(filters.search || '');
+  const rows = all.filter((r) => (!q || normName(r.member.name).includes(q)) &&
+    (!filters.color || filters.color === 'all' || r.color === filters.color));
+  const byName = (a, b) => a.member.name.localeCompare(b.member.name);
+  // Longest since a talk first: no talk on record, then oldest last talk; a scheduled talk counts as newest.
+  const since = (r) => (r.next ? '9999-12-31' : r.lastTalk || '');
+  if (filters.sort === 'oldest') rows.sort((a, b) => since(a).localeCompare(since(b)) || byName(a, b));
+  else if (filters.sort === 'color') rows.sort((a, b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color) || byName(a, b));
+  else rows.sort(byName);
+  const earliest = talks.filter((t) => !isTrue(t.void) && t.date).map((t) => t.date).sort()[0] || '';
+  return { rows, counts, total: all.length, bands, historyStart: earliest > bands.cutoff ? earliest : '' };
+}

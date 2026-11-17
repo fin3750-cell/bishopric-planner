@@ -51,7 +51,8 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const BASE = `http://127.0.0.1:${server.address().port}`;
 
 const browser = await chromium.launch();
-const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+// DARK=1 runs the same checks with the phone in dark mode.
+const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, serviceWorkers: 'block', colorScheme: process.env.DARK ? 'dark' : 'light' });
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
@@ -168,6 +169,38 @@ assert.deepEqual(order.slice(-2), ['Elmwood, Eli', 'Firwood, Fay']);   // bottom
 assert.ok((await page.locator('#view .card', { hasText: 'Elmwood, Eli' }).textContent()).includes("Won't accept"));
 if (SHOTS) await page.screenshot({ path: `${SHOTS}/10-bottom.png`, fullPage: true });
 step('search finds a scheduled person with the reason; "Won\'t accept" joins the grayed bottom group');
+
+// 5c. Everyone: every member colored by how long since they spoke; "Ask soon" (your pick) is yellow
+await go('Everyone', 'Everyone, by color');
+const chips = () => page.$$eval('#view .key-chip', (els) => els.map((e) => e.textContent));
+assert.deepEqual(await chips(), ['Ask soon (your pick) (0)', 'No talk in 3 years (2)', 'Spoke 2–3 years ago (0)', 'Spoke 1–2 years ago (1)',
+  'Spoke within 1 year, or scheduled (1)', "Shouldn't ask / Won't accept (2)"]);
+assert.deepEqual(await names(), ['Arbor, Amy', 'Birch, Ben', 'Cedar, Cora', 'Dogwood, Dan', 'Elmwood, Eli', 'Firwood, Fay']);
+const tone = async (name) => (await page.locator('#view .card', { hasText: name }).getAttribute('class')).replace('card ', '');
+assert.deepEqual([await tone('Arbor, Amy'), await tone('Birch, Ben'), await tone('Cedar, Cora'), await tone('Dogwood, Dan'), await tone('Elmwood, Eli'), await tone('Firwood, Fay')],
+  ['tone-none', 'tone-green2', 'tone-none', 'tone-green1', 'tone-red', 'tone-red']);
+assert.ok((await page.locator('#view .card', { hasText: 'Dogwood, Dan' }).textContent()).includes('Scheduled 22 Nov 2026'));
+assert.ok((await page.locator('#view .card', { hasText: 'Arbor, Amy' }).textContent()).includes('Declined 16 Nov 2026'));
+await page.locator('#view .key-chip', { hasText: "Shouldn't ask" }).click();
+assert.deepEqual(await names(), ['Elmwood, Eli', 'Firwood, Fay']);
+await page.locator('#view .key-chip', { hasText: "Shouldn't ask" }).click();
+assert.equal((await names()).length, 6);
+await page.getByLabel('Sort').selectOption('oldest');
+assert.deepEqual(await names(), ['Arbor, Amy', 'Elmwood, Eli', 'Firwood, Fay', 'Cedar, Cora', 'Birch, Ben', 'Dogwood, Dan']);
+await page.getByLabel('Sort').selectOption('name');
+await page.locator('#view .card', { hasText: 'Arbor, Amy' }).click();
+await page.getByLabel('Category').selectOption('ask_soon');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.locator('#view .card.tone-yellow', { hasText: 'Arbor, Amy' }).waitFor({ timeout: 5000 });
+assert.equal(sheet.tabs.Members.find((r) => r[0] === 'm1')[sheet.tabs.Members[0].indexOf('category')], 'ask_soon');
+assert.equal((await chips())[0], 'Ask soon (your pick) (1)');
+await noSideScroll('everyone');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/14-everyone.png`, fullPage: true });
+await page.locator('#view .card', { hasText: 'Arbor, Amy' }).click();
+await page.getByLabel('Category').selectOption('');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.locator('#view .card.tone-none', { hasText: 'Arbor, Amy' }).waitFor();
+step('Everyone: colors by last talk, red labels, scheduled and declined shown; key filters; "Ask soon" turns yellow');
 
 // 6. Import a new member list
 await go('Import');

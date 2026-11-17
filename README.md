@@ -9,6 +9,18 @@ works from a Google Sheet shared by the bishopric. The tabs along the top are **
 - **Who to ask:** members who have not spoken within the look-back window (default 3 years).
   "Ask soon" people come first, then people with no talk on record, then the people whose last
   talk was longest ago.
+- **Everyone:** every active member (8 and older), each card colored:
+  - **Green**, in three shades, for those who spoke within the look-back window. The strongest
+    shade means within 1 year or a talk is scheduled, then 1–2 years ago, then 2–3 years ago. With
+    a different window, the shades split it into thirds.
+  - **Yellow** for people you marked *Ask soon*. This is your pick, set on the person's page. The
+    member import also marks new move-ins *Ask soon*.
+  - **Red** for *Shouldn't ask* or *Won't accept*.
+  - **No color** for no talk within the window and no label.
+
+  Your labels decide the color before talks do. The color key at the top shows counts; tap a color
+  to show only those people. Sort A to Z, longest since a talk first, or by color. If the talk
+  history starts inside the window, a note says so, because "no talk" then may not mean never.
 - **Upcoming:** talks scheduled for future Sundays.
 - **History:** past talks, including visitors.
 - **Members:** everyone, with a planning category: *Ask soon*, *Not now (until a date)*,
