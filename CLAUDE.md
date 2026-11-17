@@ -34,7 +34,8 @@ how to add a feature.
 - Put rules in pure modules (`js/members.js`, `js/dates.js`, `js/features/*-logic.js`) and test
   them with `node --test`.
 - Run `node tests/e2e/smoke.mjs` (Playwright with Chromium) before pushing. It uses a fake Google
-  and a fake in-memory Sheet.
+  and a fake in-memory Sheet. When `sw.js` or the update code in `app.js` changes, also run
+  `node tests/e2e/update.mjs` (service worker on, GitHub Pages-style caching).
 - When you add or rename a file, update `SHELL` in `sw.js` and raise the `CACHE` version so phones
   pick up the change.
 - New features go in `js/features/` with `{ id, group, tables, views, memberSections, settingsSections }`, then get
