@@ -56,7 +56,10 @@ const page = await context.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
-page.on('dialog', (d) => d.accept());
+// Confirm boxes: accepted, unless a test sets dismissNext. Their text is kept in `confirms`.
+const confirms = [];
+let dismissNext = false;
+page.on('dialog', (d) => { confirms.push(d.message()); if (dismissNext) { dismissNext = false; d.dismiss(); } else d.accept(); });
 await page.clock.setFixedTime(new Date('2026-11-16T12:00:00'));
 await context.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: FAKE_GIS }));
 await context.route('https://sheets.googleapis.com/**', sheet.handle);
@@ -200,37 +203,105 @@ assert.deepEqual(await names(), ['Firwood, Fay']);
 await noSideScroll('members');
 step('Members screen lists the "Do not ask" people');
 
-// 9. Callings: the app creates the Callings tab; propose a calling and assign who will ask
+// 8b. Bishopric list: add Tess Sample by hand (she votes on callings unless unchecked)
 await page.locator('#dlg').evaluate((d) => d.open && d.close());
+await go('Settings');
+await page.getByLabel('New initials').fill('ts');
+await page.getByLabel('New name').fill('Tess Sample');
+await page.getByLabel('New role').fill('First Counselor');
+await page.locator('#view').getByRole('button', { name: 'Add', exact: true }).click();
+await page.getByText('TS added').waitFor();
+assert.equal(await page.getByLabel('TS votes on callings').isChecked(), true);
+step('Bishopric list: TS added by hand; "Votes" is checked');
+
+// 9. Callings: the app creates the Callings, Votes and Tasks tabs; propose a calling
 await go('Callings', 'Organization chart');
-assert.ok(sheet.tabs.Callings && sheet.tabs.Callings[0].includes('sustained_on'), 'Callings tab created with its columns');
+assert.ok(sheet.tabs.Callings && sheet.tabs.Callings[0].includes('sustained_on') && sheet.tabs.Callings[0].includes('approved_on'), 'Callings tab created with its columns');
+assert.ok(sheet.tabs.Votes && sheet.tabs.Votes[0].includes('voter') && sheet.tabs.Tasks && sheet.tabs.Tasks[0].includes('assigned_to'), 'Votes and Tasks tabs created');
+assert.ok(sheet.tabs.Bishopric[0].includes('votes'), 'Bishopric gained the votes column');
 assert.ok((await page.textContent('#view')).includes('No callings yet'));
 await go('Current', 'Current callings');
 await page.getByRole('button', { name: 'Propose a calling' }).click();
+assert.equal(await page.locator('#dlg').getByLabel('Who will ask').count(), 0, 'no "Who will ask" when proposing');
 await page.locator('#dlg').getByLabel('Member').fill('Arbor, Amy');
 await page.locator('#dlg').getByLabel('Organization').fill('Primary');
 await page.locator('#dlg').getByLabel('Calling').fill('Teacher');
-await page.locator('#dlg').getByLabel('Who will ask').fill('ts');
 await page.getByRole('button', { name: 'Add to In progress' }).click();
 await page.getByText('Proposed: Teacher for Arbor, Amy').waitFor();
 const ch = sheet.tabs.Callings[0];
 const call = () => sheet.tabs.Callings.find((r) => r[ch.indexOf('member_name')] === 'Arbor, Amy');
-assert.equal(call()[ch.indexOf('extend_by')], 'TS');
-step('Callings tab created; calling proposed with "who will ask" = TS');
+assert.equal(call()[ch.indexOf('proposed_on')], serial('2026-11-16'));
+assert.ok(!call()[ch.indexOf('extend_by')]);
+await go('In progress', 'Calls and releases in progress');
+let ip = await page.textContent('#view');
+assert.ok(ip.includes('Proposed (1)') && ip.includes('Your vote needed') && ip.includes('Vote (0)') && ip.includes('Needs set apart (0)'), ip);
+const heads = await page.$$eval('#view .stage-head', (els) => els.map((e) => e.textContent.replace(/ \(\d+\)$/, '')));
+assert.deepEqual(heads, ['Proposed', 'Vote', 'Bishop Approved', 'Assigned', 'Sustain', 'Sustained/LCR Record', 'Releases', 'Needs set apart']);
+assert.equal(await page.locator('#view details.stage').evaluate((d) => d.open), false, '"Needs set apart" starts closed');
+await noSideScroll('in progress');
+step('calling proposed; In progress shows the stages in order, "Needs set apart" last and closed');
 
-// 10. My tasks shows it; ask and accept
+// 10. Vote (My tasks), bishop approves, choose who asks, the asker records "Accepted"
 await go('My tasks');
-const tasksText = await page.textContent('#view');
-assert.ok(tasksText.includes('Assigned to TS (1)') && tasksText.includes('Ask (extend the call)'), tasksText);
+assert.ok((await page.textContent('#view')).includes('Votes waiting for you (1)'));
 await page.locator('#view .card', { hasText: 'Arbor, Amy' }).click();
-await stepDone('Asked');
-await page.locator('#dlg').getByRole('button', { name: 'Accepted' }).click();
-await page.locator('#dlg li.step.done', { hasText: '✓ Accepted' }).waitFor();
-assert.equal(typeof call()[ch.indexOf('accepted_on')], 'number');
-step('My tasks lists the call; asked and accepted recorded');
+await page.locator('#dlg').getByRole('button', { name: 'Support', exact: true }).click();
+await page.getByText('Vote saved: Support').waitFor();
+const vh = sheet.tabs.Votes[0];
+assert.deepEqual(sheet.tabs.Votes.slice(1).map((r) => [r[vh.indexOf('voter')], r[vh.indexOf('vote')], r[vh.indexOf('calling_id')] === call()[ch.indexOf('id')]]), [['TS', 'support', true]]);
+assert.ok((await page.textContent('#dlg')).includes('All votes are in: bishop to decide'));
+assert.equal(await page.locator('#dlg').getByRole('button', { name: '✓ Support' }).getAttribute('aria-pressed'), 'true');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/11-vote.png`, fullPage: true });
+await page.locator('#dlg').getByRole('button', { name: 'Approved', exact: true }).click();
+await page.locator('#dlg li.step.done', { hasText: '✓ Bishop approved' }).waitFor();
+assert.equal(call()[ch.indexOf('approved_on')], serial('2026-11-16'));
+assert.equal(call()[ch.indexOf('approved_by')], 'TS');
+assert.equal(confirms.length, 0, 'no "not everyone voted" question when all votes are in');
 await page.locator('#dlg').evaluate((d) => d.close());
+await go('In progress', 'Calls and releases in progress');
+assert.ok((await page.textContent('#view')).includes('Bishop Approved (1)'));
+const whoMenu = page.getByLabel('Who will ask: Arbor, Amy');
+assert.deepEqual(await whoMenu.locator('option').allTextContents(), ['Unassigned', 'TS — Tess Sample (First Counselor)', 'Stake']);
+await whoMenu.selectOption('TS');
+await page.getByText('Arbor, Amy: Tess Sample will ask').waitFor();
+assert.equal(call()[ch.indexOf('extend_by')], 'TS');
+ip = await page.textContent('#view');
+assert.ok(ip.includes('Assigned (1)') && ip.includes('Tess Sample to ask') && ip.includes('Bishop Approved (0)'), ip);
+step('TS voted Support (Votes tab); bishop approved; TS chosen to ask: now under Assigned');
 
-// 11. Sunday business: sustain
+// 10b. A free to-do, added under Assigned, shows on My tasks and is checked off there
+await page.getByLabel('New task', { exact: true }).fill('Ask the Primary presidency for teacher names');
+await page.getByLabel('New task: assigned to').selectOption('TS');
+await page.getByLabel('New task: due date').fill('2026-11-20');
+await page.getByRole('button', { name: 'Add task' }).click();
+await page.getByText('Task added').waitFor();
+const th = sheet.tabs.Tasks[0];
+const todo = () => sheet.tabs.Tasks.find((r) => r[th.indexOf('description')] === 'Ask the Primary presidency for teacher names');
+assert.equal(todo()[th.indexOf('assigned_to')], 'TS');
+assert.equal(todo()[th.indexOf('due_on')], serial('2026-11-20'));
+assert.ok((await page.textContent('#view')).includes('Other tasks (1)'));
+await noSideScroll('in progress with a task');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/12-in-progress.png`, fullPage: true });
+await go('My tasks');
+const mt = await page.textContent('#view');
+assert.ok(mt.includes('Calls to extend (1)') && mt.includes('Your to-dos (1)') && mt.includes('Due 20 Nov 2026') && mt.includes('Votes waiting for you (0)'), mt);
+await noSideScroll('my tasks');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/13-my-tasks.png`, fullPage: true });
+await page.getByLabel('Done: Ask the Primary presidency for teacher names').check();
+await page.getByText('Task done').waitFor();
+assert.equal(todo()[th.indexOf('done_on')], serial('2026-11-16'));
+assert.equal(todo()[th.indexOf('done_by')], 'TS');
+assert.ok((await page.textContent('#view')).includes('Your to-dos (0)'));
+await page.locator('#view .card-actions').getByRole('button', { name: 'Accepted' }).click();
+await page.getByText('Arbor, Amy accepted: now under Sustain').waitFor();
+assert.equal(call()[ch.indexOf('accepted_on')], serial('2026-11-16'));
+assert.ok((await page.textContent('#view')).includes('Calls to extend (0)'));
+step('to-do added with assignee and due date, checked off on My tasks; the asker tapped Accepted');
+
+// 11. Sustain: listed under Sustain (sacrament meeting) and on the Sunday screen
+await go('In progress', 'Calls and releases in progress');
+ip = await page.textContent('#view');
+assert.ok(ip.includes('Sustain (1)') && ip.includes('Sustain in sacrament meeting'), ip);
 await go('Sunday');
 assert.ok((await page.textContent('#view')).includes('To sustain (1)'));
 await noSideScroll('sunday');
@@ -240,16 +311,26 @@ await page.getByText('1 marked done for 22 Nov 2026').waitFor();
 assert.equal(call()[ch.indexOf('sustained_on')], serial('2026-11-22'));
 step('Sunday business: sustained on 22 Nov 2026');
 
-// 12. Current callings, set apart, record in LCR
-await go('Current');
-const cur = await page.textContent('#view');
-assert.ok(cur.includes('Primary') && cur.includes('Teacher') && cur.includes('Set apart') && cur.includes('Record in LCR'), cur);
-await page.locator('#view .card', { hasText: 'Teacher' }).click();
+// 12. Sustained/LCR Record, then Needs set apart
+await go('In progress', 'Calls and releases in progress');
+ip = await page.textContent('#view');
+assert.ok(ip.includes('Sustained/LCR Record (1)') && ip.includes('not set apart yet') && ip.includes('Needs set apart (0)'), ip);
+await page.locator('#view .card', { hasText: 'Arbor, Amy' }).click();
 if (SHOTS) await page.screenshot({ path: `${SHOTS}/5-calling.png`, fullPage: true });
-await stepDone('Set apart');
 await stepDone('Recorded in LCR');
+await page.locator('#dlg').evaluate((d) => d.close());
+ip = await page.textContent('#view');
+assert.ok(ip.includes('Sustained/LCR Record (0)') && ip.includes('Needs set apart (1)'), ip);
+await page.locator('#view details.stage summary').click();
+await page.locator('#view details.stage .card', { hasText: 'Arbor, Amy' }).click();
+await stepDone('Set apart');
 assert.ok((await page.textContent('#dlg')).includes('Serving'));
-step('set apart and recorded in LCR; calling now "Serving"');
+await page.locator('#dlg').evaluate((d) => d.close());
+assert.ok((await page.textContent('#view')).includes('Needs set apart (0)'));
+assert.equal(await page.locator('#view details.stage').evaluate((d) => d.open), true, 'stays open after a change');
+await go('Current');
+assert.ok((await page.textContent('#view')).includes('Teacher'));
+step('recorded in LCR (moved to Needs set apart), then set apart; calling now "Serving"');
 
 // 13. No calling list excludes her
 await page.locator('#dlg').evaluate((d) => d.close());
@@ -269,7 +350,7 @@ assert.ok((await page.textContent('#view')).includes('Releases (1)'));
 await page.getByRole('button', { name: 'Mark checked ones as done' }).click();
 await page.getByText('1 marked done for 22 Nov 2026').waitFor();
 await go('In progress');
-assert.ok((await page.textContent('#view')).includes('Record the release in LCR (1)'));
+assert.ok((await page.textContent('#view')).includes('Releases (1)') && (await page.textContent('#view')).includes('Record the release in LCR'));
 await page.locator('#view .card', { hasText: 'Arbor, Amy' }).click();
 await stepDone('Release recorded in LCR');
 assert.ok((await page.textContent('#dlg')).includes('Released'));
@@ -333,7 +414,8 @@ step('org chart: positions with holders, "No one called", optional positions, ou
 await box('Primary').getByRole('button', { name: /Cedar, Cora/ }).click();
 assert.ok((await page.textContent('#dlg')).includes('Called and set apart by: Bishop or an assigned counselor'));
 const dlgText = await page.textContent('#dlg');
-assert.ok(dlgText.includes('✓ Asked (date not recorded)') && dlgText.includes('✓ Accepted (date not recorded)'), dlgText);
+assert.ok(dlgText.includes('✓ Bishop approved (date not recorded)') && dlgText.includes('✓ Accepted (date not recorded)'), dlgText);
+assert.ok(!dlgText.includes('Your vote'), 'no voting on a calling that is already sustained');
 assert.equal(await stepRow('Set apart').getByRole('button', { name: 'Done' }).count(), 1);   // the report said not set apart
 if (SHOTS) { await page.locator('#dlg .sub', { hasText: 'Organization and calling' }).scrollIntoViewIfNeeded(); await page.screenshot({ path: `${SHOTS}/8-calling-edit.png` }); }
 await page.locator('#dlg').getByLabel('Organization').selectOption('Sunday School');
@@ -353,7 +435,10 @@ await page.locator('#dlg').getByLabel('Calling').dispatchEvent('change');
 assert.equal(await page.locator('#dlg').getByLabel('Organization').inputValue(), 'Elders Quorum');
 await page.getByRole('button', { name: 'Add to In progress' }).click();
 await page.locator('#view .card', { hasText: 'Elmwood, Eli' }).click();
-await stepDone('Asked');
+await page.locator('#dlg').getByRole('button', { name: 'Support', exact: true }).click();
+await page.getByText('Vote saved: Support').waitFor();
+await page.locator('#dlg').getByRole('button', { name: 'Approved', exact: true }).click();
+await page.locator('#dlg li.step.done', { hasText: '✓ Bishop approved' }).waitFor();
 await page.locator('#dlg').getByRole('button', { name: 'Accepted' }).click();
 await page.locator('#dlg li.step.done', { hasText: '✓ Accepted' }).waitFor();
 await page.locator('#dlg').evaluate((d) => d.close());
@@ -368,43 +453,49 @@ const bish = page.locator('#view section', { hasText: 'Bishopric list' });
 await bish.getByRole('button', { name: 'Fill from org chart (1)' }).click();
 await page.getByText('1 added').waitFor();
 assert.ok((await page.textContent('#view')).includes('AA Amy Arbor · Bishop'));
-await page.getByLabel('New initials').fill('ts');
-await page.getByLabel('New name').fill('Tess Sample');
-await page.getByLabel('New role').fill('First Counselor');
-await page.locator('#view').getByRole('button', { name: 'Add', exact: true }).click();
-await page.getByText('TS added').waitFor();
 const bh = sheet.tabs.Bishopric[0];
 assert.deepEqual(sheet.tabs.Bishopric.slice(1).map((r) => [r[bh.indexOf('initials')], r[bh.indexOf('name')], r[bh.indexOf('role')], r[bh.indexOf('active')]]),
-  [['AA', 'Amy Arbor', 'Bishop', true], ['TS', 'Tess Sample', 'First Counselor', true]]);
+  [['TS', 'Tess Sample', 'First Counselor', true], ['AA', 'Amy Arbor', 'Bishop', true]]);
 assert.equal(await page.getByLabel('Your initials').inputValue(), 'TS');
 const opts = await page.getByLabel('Your initials').locator('option').allTextContents();
-assert.deepEqual(opts, ['Choose…', 'AA — Amy Arbor', 'TS — Tess Sample']);
+assert.deepEqual(opts, ['Choose…', 'TS — Tess Sample', 'AA — Amy Arbor']);
+const aaVotes = () => sheet.tabs.Bishopric.find((r) => r[bh.indexOf('initials')] === 'AA')[bh.indexOf('votes')];
+await page.getByLabel('AA votes on callings').uncheck();
+await page.getByText('AA does not vote on callings').waitFor();
+assert.equal(aaVotes(), false);
+await page.getByLabel('AA votes on callings').check();
+await page.getByText('AA votes on callings').first().waitFor();
+assert.equal(aaVotes(), true);
 await noSideScroll('settings');
 const iniBox = await page.getByLabel('New initials').boundingBox();
 assert.ok(iniBox.height < 60, `initials box is ${iniBox.height}px tall`);
 if (SHOTS) await page.screenshot({ path: `${SHOTS}/7-settings.png`, fullPage: true });
-step('Bishopric list: filled from the org chart (Bishop), person added by hand, saved in the Sheet');
+step('Bishopric list: filled from the org chart (Bishop), saved in the Sheet; "Votes" unchecked and checked again');
 
-// 20. Menus of the list on My tasks and when proposing a calling
+// 20. Two voters: TS votes, AA has not; approving early asks first
 await go('Callings', 'Organization chart');
 await go('My tasks');
-assert.ok((await page.textContent('#view')).includes('Assigned to TS (Tess Sample)'));
+assert.ok((await page.textContent('#view')).includes('For TS (Tess Sample)'));
 await go('In progress', 'Calls and releases in progress');
 await page.getByRole('button', { name: 'Propose a calling' }).click();
-const whoOpts = await page.locator('#dlg').getByLabel('Who will ask').locator('option').allTextContents();
-assert.deepEqual(whoOpts, ['Unassigned', 'AA — Amy Arbor (Bishop)', 'TS — Tess Sample (First Counselor)', 'Stake']);
 await page.locator('#dlg').getByLabel('Member').fill('Dogwood, Dan');
 await page.locator('#dlg').getByLabel('Organization').fill('Sunday School');
 await page.locator('#dlg').getByLabel('Calling').fill('Sunday School Teacher');
-await page.locator('#dlg').getByLabel('Who will ask').selectOption('AA');
 await page.getByRole('button', { name: 'Add to In progress' }).click();
 await page.getByText('Proposed: Sunday School Teacher for Dogwood, Dan').waitFor();
-const ss = sheet.tabs.Callings.find((r) => r[ch.indexOf('calling')] === 'Sunday School Teacher');
-assert.equal(ss[ch.indexOf('extend_by')], 'AA');
-await page.locator('#view .card', { hasText: 'Dogwood, Dan' }).first().click();
-assert.equal(await stepRow('Asked').getByRole('combobox').inputValue(), 'AA');
+const ss = () => sheet.tabs.Callings.find((r) => r[ch.indexOf('calling')] === 'Sunday School Teacher');
+await page.locator('#view .card', { hasText: 'Sunday School Teacher' }).click();
+await page.locator('#dlg').getByRole('button', { name: 'Support', exact: true }).click();
+await page.getByText('Vote saved: Support').waitFor();
+assert.ok((await page.textContent('#dlg')).includes('Support: TS · Waiting for: AA'));
+dismissNext = true;
+await page.locator('#dlg').getByRole('button', { name: 'Approved', exact: true }).click();
+assert.equal(confirms.at(-1), "Still waiting for AA to vote. Record the bishop's approval anyway?");
+assert.ok(!ss()[ch.indexOf('approved_on')], 'not approved after answering Cancel');
 await page.locator('#dlg').evaluate((d) => d.close());
-step('"Who will ask" and step assignees are menus of the Bishopric list');
+ip = await page.textContent('#view');
+assert.ok(ip.includes('Vote (1)') && ip.includes('Support: TS · Waiting for: AA'), ip);
+step('two voters: the card shows who is still to vote; approving early asks first');
 
 // 21. "Which one are you?" links the signed-in Google account to a Bishopric list entry
 await go('Settings');
@@ -414,6 +505,61 @@ await page.getByText('Welcome, Tess Sample').waitFor();
 assert.equal(sheet.tabs.Bishopric.find((r) => r[bh.indexOf('initials')] === 'TS')[sheet.tabs.Bishopric[0].indexOf('email')], 'tess.sample@gmail.com');
 assert.ok((await page.textContent('#view')).includes('You: TS — Tess Sample (recognized from your Google account tess.sample@gmail.com)'));
 step('"Which one are you?" saved the Google account on the Bishopric list');
+
+// 21b. AA votes "Don't support" on another phone; the bishop does not approve, then undoes it;
+//      AA changes to Support; approved; AA is chosen to ask
+const addVote = (vote) => {
+  const row = vh.map(() => '');
+  Object.assign(row, { [vh.indexOf('id')]: 'v-aa', [vh.indexOf('calling_id')]: ss()[ch.indexOf('id')], [vh.indexOf('voter')]: 'AA', [vh.indexOf('vote')]: vote });
+  sheet.tabs.Votes.push(row);
+};
+addVote('oppose');
+await page.locator('#view').getByRole('button', { name: 'Reload data' }).click();
+await page.getByText('Loaded 8 members').waitFor();
+await go('Callings', 'Organization chart');
+await go('In progress', 'Calls and releases in progress');
+ip = await page.textContent('#view');
+assert.ok(ip.includes("Support: TS · Don't support: AA") && ip.includes("1 don't support") && ip.includes('Votes in'), ip);
+await page.locator('#view .card', { hasText: 'Sunday School Teacher' }).click();
+await page.locator('#dlg').getByRole('button', { name: 'Not approved' }).click();
+await page.locator('#dlg li.step.done', { hasText: '✓ Not approved by the bishop' }).waitFor();
+assert.equal(confirms.at(-1), 'Record that the bishop did not approve this calling? It closes and stays in the Sheet.');
+assert.equal(ss()[ch.indexOf('not_approved_on')], serial('2026-11-16'));
+await page.locator('#dlg').evaluate((d) => d.close());
+assert.ok(!(await page.textContent('#view')).includes('Sunday School Teacher'), 'a calling that was not approved leaves In progress');
+// Undo it from the member's page
+await go('Members');
+await page.locator('#view').getByLabel('Category').selectOption('any');
+await page.locator('#view .card', { hasText: 'Dogwood, Dan' }).click();
+assert.ok((await page.textContent('#dlg')).includes('Not approved'));
+await page.locator('#dlg').getByRole('button', { name: /Sunday School Teacher/ }).click();
+await page.locator('#dlg li.step.done', { hasText: '✓ Not approved by the bishop' }).getByRole('button', { name: 'Undo' }).click();
+await page.locator('#dlg').getByRole('button', { name: 'Approved', exact: true }).waitFor();
+assert.ok(!ss()[ch.indexOf('not_approved_on')] && !ss()[ch.indexOf('approved_by')]);
+await page.locator('#dlg').evaluate((d) => d.close());
+sheet.tabs.Votes.find((r) => r[vh.indexOf('id')] === 'v-aa')[vh.indexOf('vote')] = 'support';
+await go('Settings');
+await page.locator('#view').getByRole('button', { name: 'Reload data' }).click();
+await page.getByText('Loaded 8 members').waitFor();
+await go('Callings', 'Organization chart');
+await go('In progress', 'Calls and releases in progress');
+assert.ok((await page.textContent('#view')).includes('Support: TS, AA'));
+const before = confirms.length;
+await page.locator('#view .card', { hasText: 'Sunday School Teacher' }).click();
+await page.locator('#dlg').getByRole('button', { name: 'Approved', exact: true }).click();
+await page.locator('#dlg li.step.done', { hasText: '✓ Bishop approved' }).waitFor();
+assert.equal(confirms.length, before, 'no question once every voter has voted');
+await page.locator('#dlg').evaluate((d) => d.close());
+const whoMenu2 = page.getByLabel('Who will ask: Dogwood, Dan');
+assert.deepEqual(await whoMenu2.locator('option').allTextContents(), ['Unassigned', 'TS — Tess Sample (First Counselor)', 'AA — Amy Arbor (Bishop)', 'Stake']);
+await whoMenu2.selectOption('AA');
+await page.getByText('Dogwood, Dan: Amy Arbor will ask').waitFor();
+assert.equal(ss()[ch.indexOf('extend_by')], 'AA');
+assert.ok((await page.textContent('#view')).includes('Amy Arbor to ask'));
+await go('My tasks');
+assert.ok((await page.textContent('#view')).includes('Calls to extend (0)'), 'assigned to AA, not to TS');
+step('AA\'s vote from another phone shows after Reload; not approved, undone, approved; AA chosen to ask');
+await go('Settings');
 
 // 22. A new phone: no settings at all. The Sheet and client ID are built in, and the person is
 //     recognized from their Google account (same Gmail address written without the dot).

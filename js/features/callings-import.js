@@ -151,7 +151,7 @@ export function diffCallingsImport(callings, members, rows, today) {
   const memberByNorm = new Map(members.filter((m) => m.id).map((m) => [normName(m.name), m]));
   const live = callings.filter((c) => {
     const p = callingState(c).phase;
-    return p !== 'void' && p !== 'declined' && p !== 'ended';
+    return p !== 'void' && p !== 'declined' && p !== 'not_approved' && p !== 'ended';
   });
   const used = new Set();
   const add = [];

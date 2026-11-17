@@ -4,15 +4,12 @@
 import { normName } from '../members.js';
 import { h, add } from '../ui.js';
 import { ORGS, ORG_NAMES, OTHER, OUTSIDE } from './callings-orgs.js';
-import { callingState, isCurrent, isPending, tenureMonths, formatTenure } from './callings-logic.js';
-
-const PENDING_TEXT = { proposed: 'proposed', awaiting: 'asked', to_sustain: 'accepted' };
+import { pendingLabel, isCurrent, isPending, tenureMonths, formatTenure } from './callings-logic.js';
 
 function holderButton(c, today, openCalling, ctx) {
-  const phase = callingState(c).phase;
   return h('button', { class: 'holder', onclick: () => openCalling(c.id, ctx) },
     h('span', { class: 'holder-name', text: c.member_name }),
-    isPending(c) ? h('span', { class: 'badge new', text: PENDING_TEXT[phase] || phase }) : null,
+    isPending(c) ? h('span', { class: 'badge new', text: pendingLabel(c) }) : null,
     isCurrent(c) && c.sustained_on ? h('span', { class: 'meta', text: formatTenure(tenureMonths(c, today)) }) : null);
 }
 

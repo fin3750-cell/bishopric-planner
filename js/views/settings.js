@@ -67,8 +67,16 @@ function bishopricSection(ctx) {
       if (!window.confirm(`Take ${p.name || p.initials} off the Bishopric list? Steps already assigned to ${p.initials} keep those initials.`)) return;
       busy(remove, async () => { await ctx.store.update('Bishopric', [{ id: p.id, fields: { active: false } }]); toast('Removed'); ctx.refresh(); }).catch(() => {});
     });
+    // Votes on proposed callings unless unchecked (the "votes" column is FALSE).
+    const votes = h('input', { type: 'checkbox', checked: String(p.votes ?? '').trim().toUpperCase() !== 'FALSE', 'aria-label': `${p.initials} votes on callings` });
+    votes.addEventListener('change', () => {
+      ctx.store.update('Bishopric', [{ id: p.id, fields: { votes: votes.checked } }])
+        .then(() => { toast(votes.checked ? `${p.initials} votes on callings` : `${p.initials} does not vote on callings`); ctx.refresh(); })
+        .catch((e) => { votes.checked = !votes.checked; ctx.fail(e); });
+    });
     return h('li', { class: 'row' }, h('span', {}, h('strong', { text: p.initials }), ` ${p.name}${p.role ? ` · ${p.role}` : ''}`,
-      h('span', { class: 'meta small', text: p.email ? ` · ${p.email}` : ' · Google account not linked yet' })), remove);
+      h('span', { class: 'meta small', text: p.email ? ` · ${p.email}` : ' · Google account not linked yet' })),
+    h('span', { class: 'step-controls' }, h('label', { class: 'check' }, votes, 'Votes'), remove));
   }));
 
   // Suggestions from current callings (Bishop, counselors, executive secretary), not already listed.
@@ -101,7 +109,7 @@ function bishopricSection(ctx) {
 
   return h('section', { class: 'sub' },
     h('h3', { text: 'Bishopric list' }),
-    h('p', { class: 'hint', text: 'The people who can be assigned steps (asking, setting apart, recording in LCR). Saved in the Sheet, so everyone sees the same list. "Fill from org chart" adds the current bishop, counselors and executive secretary from the Callings tab. Each person\'s Google account is linked the first time they sign in ("Which one are you?"), so the app recognizes them on any device.' }),
+    h('p', { class: 'hint', text: 'The people who can be assigned steps (asking, setting apart, recording in LCR). Saved in the Sheet, so everyone sees the same list. "Fill from org chart" adds the current bishop, counselors and executive secretary from the Callings tab. Each person\'s Google account is linked the first time they sign in ("Which one are you?"), so the app recognizes them on any device. "Votes": checked for each person who votes on proposed callings; uncheck anyone who does not.' }),
     people.length ? list : h('p', { class: 'empty', text: 'No one on the list yet.' }),
     h('div', { class: 'toolbar' }, fill),
     h('div', { class: 'inline-form' }, field('Initials', ini), field('Name', name), field('Role', role), field('Google account', email), addBtn));

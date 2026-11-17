@@ -3,26 +3,133 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   callingState, isCurrent, isPending, monthsBetween, tenureMonths, formatTenure,
-  myTasks, sundayBusiness, currentCallings, membersWithoutCalling, openTasks,
+  myWork, sundayBusiness, currentCallings, membersWithoutCalling, openTasks,
+  stageOf, pipeline, votersFrom, castVotes, voteTally, openTodos, recentlyDone, pendingLabel,
 } from '../js/features/callings-logic.js';
 
 const TODAY = '2026-11-16';
 const steps = (c) => callingState(c).tasks.map((t) => t.step);
 
 test('call steps move in order; a later date implies the earlier ones', () => {
-  assert.deepEqual(steps({ proposed_on: '2026-11-01' }), ['extend']);
+  assert.deepEqual(steps({ proposed_on: '2026-11-01' }), ['approve']);
   assert.equal(callingState({ proposed_on: '2026-11-01' }).phase, 'proposed');
-  assert.deepEqual(steps({ proposed_on: '2026-11-01', extended_on: '2026-11-03' }), ['answer']);
-  assert.deepEqual(steps({ extended_on: '2026-11-03', accepted_on: '2026-11-04' }), ['sustain']);
-  // sustained -> set apart and record in LCR are both open, in either order
-  assert.deepEqual(steps({ sustained_on: '2026-11-08' }), ['set_apart', 'record']);
+  assert.deepEqual(steps({ proposed_on: '2026-11-01', approved_on: '2026-11-02' }), ['extend']);
+  assert.equal(callingState({ proposed_on: '2026-11-01', approved_on: '2026-11-02' }).phase, 'approved');
+  // asked before the approval step existed: counts as approved
+  assert.deepEqual(steps({ proposed_on: '2026-11-01', extended_on: '2026-11-03' }), ['extend']);
+  assert.deepEqual(steps({ approved_on: '2026-11-02', accepted_on: '2026-11-04' }), ['sustain']);
+  assert.deepEqual(steps({ accepted_on: '2026-11-04' }), ['sustain']);        // accepted implies approved
+  // sustained -> record in LCR, then set apart
+  assert.deepEqual(steps({ sustained_on: '2026-11-08' }), ['record', 'set_apart']);
   assert.deepEqual(steps({ sustained_on: '2026-11-08', recorded_on: '2026-11-09' }), ['set_apart']);
   assert.deepEqual(steps({ sustained_on: '2026-11-08', set_apart_on: '2026-11-08', recorded_on: '2026-11-09' }), []);
   assert.equal(callingState({ sustained_on: '2026-11-08', set_apart_on: '2026-11-08', recorded_on: '2026-11-09' }).phase, 'serving');
 });
 
+test('stages of the In progress screen', () => {
+  const votes = [{ calling_id: 'v1', voter: 'aa', vote: 'support' }];
+  assert.equal(stageOf({ id: 'p1', proposed_on: '2026-11-01' }, votes), 'proposed');
+  assert.equal(stageOf({ id: 'v1', proposed_on: '2026-11-01' }, votes), 'vote');
+  assert.equal(stageOf({ id: 'a1', approved_on: '2026-11-02' }, votes), 'approved');
+  assert.equal(stageOf({ id: 'a2', approved_on: '2026-11-02', extend_by: 'ts' }, votes), 'assigned');
+  assert.equal(stageOf({ id: 's1', accepted_on: '2026-11-04', extend_by: 'TS' }, votes), 'sustain');
+  assert.equal(stageOf({ id: 'r1', sustained_on: '2026-11-08' }, votes), 'record');          // not set apart either: shown once, under LCR record
+  assert.equal(stageOf({ id: 'r2', sustained_on: '2026-11-08', set_apart_on: '2026-11-08' }, votes), 'record');
+  assert.equal(stageOf({ id: 'x1', sustained_on: '2026-11-08', recorded_on: '2026-11-09' }, votes), 'set_apart');
+  assert.equal(stageOf({ id: 'd1', sustained_on: '2026-11-08', recorded_on: '2026-11-09', set_apart_on: '2026-11-08' }, votes), null);
+  assert.equal(stageOf({ id: 'e1', sustained_on: '2024-01-07', recorded_on: '2024-01-08', set_apart_on: '2024-01-07', release_proposed_on: '2026-11-01' }, votes), 'release');
+  // a release in progress is under Releases even if the calling was never set apart
+  assert.equal(stageOf({ id: 'e2', sustained_on: '2024-01-07', recorded_on: '2024-01-08', release_proposed_on: '2026-11-01' }, votes), 'release');
+  assert.equal(stageOf({ id: 'n1', proposed_on: '2026-11-01', not_approved_on: '2026-11-03' }, votes), null);
+  assert.equal(stageOf({ id: 'n2', approved_on: '2026-11-02', declined_on: '2026-11-05' }, votes), null);
+  assert.equal(stageOf({ id: 'v1', proposed_on: '2026-11-01', void: true }, votes), null);
+});
+
+test('votes: who votes, latest row per person, tally', () => {
+  const people = [{ initials: 'AA', votes: '' }, { initials: 'TS', votes: true }, { initials: 'DW', votes: 'TRUE' }, { initials: 'ES', votes: false }, { initials: 'XX', votes: 'FALSE' }];
+  assert.deepEqual(votersFrom(people), ['AA', 'TS', 'DW']);   // blank counts as yes; FALSE (boolean or text) is no
+  const votes = [
+    { id: '1', calling_id: 'c1', voter: 'ts', vote: 'oppose' },
+    { id: '2', calling_id: 'c1', voter: 'TS', vote: 'Support' },     // a second row for TS: the lower one counts
+    { id: '3', calling_id: 'c1', voter: 'DW', vote: 'oppose' },
+    { id: '4', calling_id: 'c1', voter: 'AA', vote: 'support', void: 'TRUE' },   // removed
+    { id: '5', calling_id: 'c2', voter: 'AA', vote: 'support' },
+    { id: '6', calling_id: 'c1', voter: 'ZZ', vote: 'support' },     // not on the list any more: still shown
+    { id: '7', calling_id: 'c1', voter: 'QQ', vote: 'maybe' },       // not a vote
+  ];
+  assert.deepEqual([...castVotes('c1', votes).keys()], ['TS', 'DW', 'ZZ']);
+  const t = voteTally('c1', votes, ['AA', 'TS', 'DW']);
+  assert.deepEqual([t.support, t.oppose, t.waiting, t.allIn, t.count], [['TS', 'ZZ'], ['DW'], ['AA'], false, 3]);
+  const all = voteTally('c1', [...votes, { id: '8', calling_id: 'c1', voter: 'AA', vote: 'support' }], ['AA', 'TS', 'DW']);
+  assert.deepEqual([all.support, all.waiting, all.allIn], [['AA', 'TS', 'ZZ'], [], true]);
+  assert.equal(voteTally('c1', votes, []).allIn, false);   // no voter list: never "all in"
+});
+
+test('pipeline groups every calling in progress into one stage', () => {
+  const cs = [
+    { id: '1', member_name: 'Birch, Ben', organization: 'Primary', proposed_on: '2026-11-01' },
+    { id: '2', member_name: 'Arbor, Amy', organization: 'Primary', proposed_on: '2026-11-01' },
+    { id: '3', member_name: 'Cedar, Cora', organization: 'Elders Quorum', proposed_on: '2026-11-01' },
+    { id: '4', member_name: 'Dogwood, Dan', organization: 'Primary', sustained_on: '2020-01-05', recorded_on: '2020-01-06' },
+    { id: '5', member_name: 'Elmwood, Eli', organization: 'Primary', proposed_on: '2026-11-01', void: true },
+  ];
+  const p = pipeline(cs, [{ calling_id: '3', voter: 'AA', vote: 'support' }]);
+  assert.deepEqual(p.proposed.map((c) => c.id), ['2', '1']);   // organization, then name
+  assert.deepEqual(p.vote.map((c) => c.id), ['3']);
+  assert.deepEqual(p.set_apart.map((c) => c.id), ['4']);
+  assert.deepEqual(Object.keys(p), ['proposed', 'vote', 'approved', 'assigned', 'sustain', 'record', 'release', 'set_apart']);
+});
+
+test('to-dos: open ones by due date, recently done', () => {
+  const todos = [
+    { id: 't1', description: 'No due date', assigned_to: 'AA' },
+    { id: 't2', description: 'Due later', assigned_to: 'ts', due_on: '2026-11-30' },
+    { id: 't3', description: 'Due soon', assigned_to: '', due_on: '2026-11-18' },
+    { id: 't4', description: 'Done', assigned_to: 'TS', done_on: '2026-11-10' },
+    { id: 't5', description: 'Done long ago', assigned_to: 'TS', done_on: '2026-09-01' },
+    { id: 't6', description: 'Removed', assigned_to: 'TS', void: true },
+    { id: 't7', description: '', assigned_to: 'TS' },
+  ];
+  assert.deepEqual(openTodos(todos).map((t) => t.id), ['t3', 't2', 't1']);
+  assert.deepEqual(recentlyDone(todos, TODAY).map((t) => t.id), ['t4']);
+  assert.deepEqual(recentlyDone(todos, TODAY, 90).map((t) => t.id), ['t4', 't5']);
+});
+
+test('my work: votes, asks, other steps and to-dos', () => {
+  const cs = [
+    { id: 'c1', member_name: 'Arbor, Amy', organization: 'Primary', proposed_on: '2026-11-01' },
+    { id: 'c2', member_name: 'Birch, Ben', organization: 'Primary', proposed_on: '2026-11-01' },
+    { id: 'c3', member_name: 'Cedar, Cora', organization: 'Primary', approved_on: '2026-11-02', extend_by: 'ts' },
+    { id: 'c4', member_name: 'Dogwood, Dan', organization: 'Primary', approved_on: '2026-11-02', extend_by: 'AA' },
+    { id: 'c5', member_name: 'Elmwood, Eli', organization: 'Primary', sustained_on: '2026-11-08', record_by: 'TS', set_apart_by: 'AA' },
+  ];
+  const votes = [{ calling_id: 'c2', voter: 'TS', vote: 'support' }];
+  const todos = [{ id: 't1', description: 'Mine', assigned_to: 'ts' }, { id: 't2', description: 'Nobody', assigned_to: '' }, { id: 't3', description: 'Theirs', assigned_to: 'AA' }];
+  const w = myWork({ callings: cs, votes, voters: ['AA', 'TS'], todos, initials: 'ts' });
+  assert.deepEqual(w.votes.map((c) => c.id), ['c1']);
+  assert.deepEqual(w.asks.map((t) => t.calling.id), ['c3']);
+  assert.deepEqual(w.steps.map((t) => `${t.calling.id}:${t.step}`), ['c5:record']);
+  assert.deepEqual(w.todos.map((t) => t.id), ['t1']);
+  assert.deepEqual(w.unassignedTodos.map((t) => t.id), ['t2']);
+  // not on the voter list: no votes to cast
+  assert.deepEqual(myWork({ callings: cs, votes, voters: ['AA'], todos, initials: 'TS' }).votes, []);
+  // no initials: only the to-dos nobody has
+  const none = myWork({ callings: cs, votes, voters: ['AA', 'TS'], todos, initials: '' });
+  assert.deepEqual([none.votes.length, none.asks.length, none.steps.length, none.todos.length, none.unassignedTodos.length], [0, 0, 0, 0, 1]);
+});
+
+test('org chart badge for callings on their way', () => {
+  assert.equal(pendingLabel({ proposed_on: '2026-11-01' }), 'proposed');
+  assert.equal(pendingLabel({ approved_on: '2026-11-02' }), 'approved');
+  assert.equal(pendingLabel({ approved_on: '2026-11-02', extend_by: 'TS' }), 'being asked');
+  assert.equal(pendingLabel({ accepted_on: '2026-11-04' }), 'accepted');
+  assert.equal(isPending({ proposed_on: '2026-11-01', not_approved_on: '2026-11-03' }), false);
+});
+
 test('declined and removed callings have no tasks', () => {
-  assert.equal(callingState({ extended_on: '2026-11-03', declined_on: '2026-11-04' }).phase, 'declined');
+  assert.equal(callingState({ approved_on: '2026-11-03', declined_on: '2026-11-04' }).phase, 'declined');
+  assert.equal(callingState({ proposed_on: '2026-11-01', not_approved_on: '2026-11-04' }).phase, 'not_approved');
+  assert.deepEqual(steps({ proposed_on: '2026-11-01', not_approved_on: '2026-11-04' }), []);
   assert.deepEqual(steps({ extended_on: '2026-11-03', declined_on: '2026-11-04' }), []);
   assert.equal(callingState({ proposed_on: '2026-11-01', void: 'TRUE' }).phase, 'void');
 });
@@ -57,20 +164,14 @@ test('time in calling', () => {
 });
 
 const callings = [
-  { id: 'c1', member_id: 'a', member_name: 'Arbor, Amy', organization: 'Primary', calling: 'Teacher', proposed_on: '2026-11-01', extend_by: 'kw' },
-  { id: 'c2', member_id: 'b', member_name: 'Birch, Ben', organization: 'Sunday School', calling: 'Teacher', extended_on: '2026-11-03', accepted_on: '2026-11-05', extend_by: 'DS' },
+  { id: 'c1', member_id: 'a', member_name: 'Arbor, Amy', organization: 'Primary', calling: 'Teacher', proposed_on: '2026-11-01', approved_on: '2026-11-02', extend_by: 'kw' },
+  { id: 'c2', member_id: 'b', member_name: 'Birch, Ben', organization: 'Sunday School', calling: 'Teacher', approved_on: '2026-11-02', accepted_on: '2026-11-05', extend_by: 'DS' },
   { id: 'c3', member_id: 'c', member_name: 'Cedar, Cora', organization: 'Relief Society', calling: 'Secretary', sustained_on: '2023-02-05', set_apart_on: '2023-02-05', recorded_on: '2023-02-06', release_informed_on: '2026-11-10', release_proposed_on: '2026-11-01' },
   { id: 'c4', member_id: 'd', member_name: 'Dogwood, Dan', organization: 'Elders Quorum', calling: 'Secretary', sustained_on: '2026-11-08', recorded_on: '2026-11-09' },
-  { id: 'c5', member_id: 'e', member_name: 'Elmwood, Eli', organization: 'Primary', calling: 'Teacher', extended_on: '2026-10-01', declined_on: '2026-10-02' },
+  { id: 'c5', member_id: 'e', member_name: 'Elmwood, Eli', organization: 'Primary', calling: 'Teacher', approved_on: '2026-10-01', declined_on: '2026-10-02' },
   { id: 'c6', member_id: 'f', member_name: 'Firwood, Fay', organization: 'Primary', calling: 'Pianist', proposed_on: '2026-11-01', void: true },
+  { id: 'c7', member_id: 'g', member_name: 'Golf, Gus', organization: 'Primary', calling: 'Pianist', proposed_on: '2026-11-01', not_approved_on: '2026-11-03' },
 ];
-
-test('my tasks and unassigned tasks', () => {
-  const { mine, unassigned } = myTasks(callings, 'KW');
-  assert.deepEqual(mine.map((t) => [t.calling.id, t.step]), [['c1', 'extend']]);   // initials compared without case
-  // c4 still needs setting apart and nobody is assigned; c3's next step (release in sacrament meeting) has no assignee column
-  assert.deepEqual(unassigned.map((t) => [t.calling.id, t.step]), [['c4', 'set_apart']]);
-});
 
 test('Sunday business: releases and sustainings', () => {
   const s = sundayBusiness(callings);
@@ -88,7 +189,7 @@ test('current callings and members without a calling', () => {
     { id: 'a', name: 'Arbor, Amy', age: 40, age_as_of: TODAY, status: 'active' },     // pending call
     { id: 'c', name: 'Cedar, Cora', age: 50, age_as_of: TODAY, status: 'active' },    // current (release in progress)
     { id: 'e', name: 'Elmwood, Eli', age: 30, age_as_of: TODAY, status: 'active' },   // declined -> no calling
-    { id: 'g', name: 'Golf, Gus', age: 15, age_as_of: TODAY, status: 'active' },      // under 18
+    { id: 'g', name: 'Golf, Gus', age: 15, age_as_of: TODAY, status: 'active' },      // under 18 (not approved -> no calling)
     { id: 'h', name: 'Hazel, Hal', age: 60, age_as_of: TODAY, status: 'moved' },
     { id: 'i', name: 'Ivy, Ida', age: '', status: 'active' },                          // age unknown -> listed
   ];
