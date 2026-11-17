@@ -176,6 +176,19 @@ test('email matching for the Bishopric list', async () => {
   assert.equal(bishopricForEmail(rows, ''), null);
 });
 
+test('email matching for the Limited access list', async () => {
+  const { accessForEmail } = await import('../js/members.js');
+  const rows = [
+    { id: 'a1', name: 'Juno Limited', email: 'Juno.Limited@gmail.com', active: true },
+    { id: 'a2', name: 'Old Entry', email: 'old@example.org', active: 'FALSE' },
+    { id: 'a3', name: 'Mistake', email: 'oops@example.org', void: true },
+  ];
+  assert.equal(accessForEmail(rows, 'junolimited@gmail.com').id, 'a1');   // Gmail dots and case ignored
+  assert.equal(accessForEmail(rows, 'old@example.org'), null);            // removed
+  assert.equal(accessForEmail(rows, 'oops@example.org'), null);           // marked as a mistake
+  assert.equal(accessForEmail(rows, ''), null);
+});
+
 test('ask list: "Shouldn\'t ask" and "Won\'t accept" at the bottom; search shows people left off', () => {
   const members = [
     member('a', 'Alpha, Ann'),

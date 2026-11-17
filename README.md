@@ -74,6 +74,23 @@ added by hand. Once the list exists, "Your initials" and every "Who" box are men
 (plus "Stake" for calling steps), and My tasks shows the name with the initials. Remove sets
 `active` = FALSE.
 
+**Limited access (Settings).** A list of people (name and Google account, saved in the Sheet's
+Access tab) who see a smaller app:
+- **Callings:** the org chart with current callings only (not ones on their way), current callings
+  (no step badges, not tappable), members with no calling, and **Propose a calling**. Their
+  proposals go to In progress → Proposed, shown with "by" and their name.
+- **Calendar:** your items, stake events and fast Sundays (no speakers or to-dos), Coming up and the
+  Stake directory. They can add items and remove the ones they added.
+- **Members:** names and ages only. A person's page shows their current callings and Propose a
+  calling.
+- Reload data and Sign out are at the bottom of each screen, since Settings is hidden.
+
+This hides screens; it does not make anything private. Anyone the Sheet is shared with can open it
+in Google Sheets and see every tab. Each person needs the Sheet shared with them and must be added as
+a test user in Google Cloud (the sign-in is in Testing). Once the list has anyone on it, an account
+on neither the Bishopric nor the Limited access list also sees the smaller app, and can use "Which
+one are you?" to claim a Bishopric entry that has no account yet.
+
 **Records callings in LCR (Settings).** The person who records callings in LCR. Every calling
 waiting to be recorded is assigned to them and shows on their My tasks, unless that calling's page
 names someone else. Until someone is chosen, the person whose role is Executive Secretary on the
@@ -237,6 +254,7 @@ has 26, A to Z), the app adds columns first, because Google refuses to write pas
 | Callings | id, member_id, member_name, organization, calling, proposed_on, approved_on, approved_by (who recorded the bishop's decision), not_approved_on, extend_by, extended_on, accepted_on, declined_on, sustained_on, set_apart_by, set_apart_on, record_by, recorded_on, release_proposed_on, release_by, release_informed_on, released_on, release_record_by, release_recorded_on, source, notes, entered_by, entered_at, void |
 | Tasks | id, description, assigned_to, due_on, done_on, done_by, entered_by, entered_at, void |
 | Events | id, date, time, title, notes, entered_by, entered_at, void (events added on the Calendar) |
+| Access | id, name, email (Google account), active (FALSE = removed): people who see the limited app |
 | Settings | id (the setting's name), value, updated_by, updated_at: settings shared by everyone, such as `stake_sheet` (the stake Sheet's link), `stake_ward` and `record_by` (who records callings in LCR) |
 
 Each Callings row is one person in one calling, from proposal to release. A later step implies the

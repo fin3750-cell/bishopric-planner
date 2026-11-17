@@ -5,7 +5,8 @@ import { registerTables, Store } from './js/store.js';
 import { SheetsApi, AuthError } from './js/sheets.js';
 import { initAuth, signIn, signOut, currentToken, signedInEmail } from './js/auth.js';
 import { loadSettings, saveSettings } from './js/settings.js';
-import { activeBishopric, bishopricForEmail } from './js/members.js';
+import { activeBishopric, bishopricForEmail, accessForEmail, isTrue } from './js/members.js';
+import { APP_VERSION } from './config.js';
 import { todayISO, addDays, nextSunday } from './js/dates.js';
 import { h, clear, toast, openDialog, busy } from './js/ui.js';
 import { renderMembers, openMember } from './js/views/members.js';
@@ -18,14 +19,15 @@ for (const f of FEATURES) registerTables(f.tables);
 // screens of the current group when it has more than one.
 const VIEWS = [
   ...FEATURES.flatMap((f) => f.views.map((v) => ({ ...v, group: f.group, needsData: true }))),
-  { id: 'members', label: 'Members', group: 'Members', render: renderMembers, needsData: true },
+  { id: 'members', label: 'Members', group: 'Members', render: renderMembers, needsData: true, limited: true },
   { id: 'import', label: 'Import', group: 'Import', render: renderImport, needsData: true },
   { id: 'settings', label: 'Settings', group: 'Settings', render: renderSettings, needsData: false },
 ];
-const GROUPS = [...new Set(VIEWS.map((v) => v.group))];
+// me: the signed-in Google account, their Bishopric list entry once matched, and what they see:
+// access 'full', or 'limited' (only the screens marked limited: true; see identify()).
+const state = { settings: loadSettings(), store: null, authReady: null, loading: false, me: { email: '', person: null, access: 'full', limited: null } };
 
-// me: the signed-in Google account and, once matched, their Bishopric list entry.
-const state = { settings: loadSettings(), store: null, authReady: null, loading: false, me: { email: '', person: null } };
+function visibleViews() { return state.store && state.me.access === 'limited' ? VIEWS.filter((v) => v.limited) : VIEWS; }
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -55,9 +57,12 @@ const ctx = {
     },
   },
   me: () => state.me,
+  limited: () => Boolean(state.store) && state.me.access === 'limited',
+  // Who did something, as saved in entered_by: initials, or a limited person's name.
+  who: () => (state.me.access === 'limited' ? (state.me.limited ? state.me.limited.name : state.me.email) : state.settings.initials),
   askWhoYouAre: () => askWhoYouAre(),
   reload: () => loadData().catch(handleError),
-  signOut: () => { signOut(); state.store = null; state.me = { email: '', person: null }; toast('Signed out'); render(); },
+  signOut: () => { signOut(); state.store = null; state.me = { email: '', person: null, access: 'full', limited: null }; toast('Signed out'); render(); },
   applySettings: (next) => {
     const changed = next.sheetId !== state.settings.sheetId || next.clientId !== state.settings.clientId;
     state.settings = next;
@@ -89,19 +94,23 @@ async function loadData() {
     const store = new Store(api);
     await store.load();
     state.store = store;
+    await identify();
     toast(`Loaded ${store.records('Members').length} members`);
   } finally {
     state.loading = false;
     render();
   }
-  await identify();
+  if (state.me.askWho) askWhoYouAre();
 }
 
-// Recognize the signed-in person from their Google account. A match sets their initials on this
-// device. With no match yet, ask once which Bishopric list entry they are and save their account there.
+// Recognize the signed-in person from their Google account.
+//   On the Bishopric list: the full app; their initials are set on this device.
+//   On the Limited access list: the limited app.
+//   Neither: the full app while the Limited access list is empty (as before it existed); otherwise
+//   the limited app. Either way, if a Bishopric entry has no account yet, ask "Which one are you?".
 async function identify() {
   const email = await signedInEmail();
-  state.me = { email, person: null };
+  state.me = { email, person: null, access: 'full', limited: null, askWho: false };
   if (!email || !state.store) return;
   const person = bishopricForEmail(state.store.records('Bishopric'), email);
   if (person) {
@@ -110,10 +119,14 @@ async function identify() {
       state.settings = { ...state.settings, initials: person.initials };
       saveSettings(state.settings);
     }
-    render();
     return;
   }
-  if (ctx.bishopric().some((p) => !p.email)) askWhoYouAre();
+  const accessRows = state.store.records('Access');
+  const limited = accessForEmail(accessRows, email);
+  if (limited) { Object.assign(state.me, { access: 'limited', limited }); return; }
+  const listInUse = accessRows.some((r) => r.email && !isTrue(r.void) && String(r.active).toUpperCase() !== 'FALSE');
+  if (listInUse) state.me.access = 'limited';
+  state.me.askWho = ctx.bishopric().some((p) => !p.email);
 }
 
 function askWhoYouAre() {
@@ -127,7 +140,7 @@ function askWhoYouAre() {
       const b = h('button', { class: 'secondary', text: `${p.initials} — ${p.name}${p.role ? ` (${p.role})` : ''}` });
       b.addEventListener('click', () => busy(b, async () => {
         await state.store.update('Bishopric', [{ id: p.id, fields: { email } }]);
-        state.me.person = { ...p, email };
+        Object.assign(state.me, { person: { ...p, email }, access: 'full', limited: null, askWho: false });
         state.settings = { ...state.settings, initials: p.initials };
         saveSettings(state.settings);
         toast(`Welcome, ${p.name}`);
@@ -159,19 +172,21 @@ function renderHeader() {
 
 function currentView() {
   const id = (location.hash || '#ask').slice(1);
-  return VIEWS.find((v) => v.id === id) || VIEWS[0];
+  const views = visibleViews();
+  return views.find((v) => v.id === id) || views[0];
 }
 
 function render() {
   const view = currentView();
+  const views = visibleViews();
   const nav = clear(document.getElementById('tabs'));
   const primary = h('div', { class: 'tab-row' });
-  for (const g of GROUPS) {
-    const first = VIEWS.find((v) => v.group === g);
+  for (const g of [...new Set(views.map((v) => v.group))]) {
+    const first = views.find((v) => v.group === g);
     primary.append(h('a', { href: `#${first.id}`, class: g === view.group ? 'tab active' : 'tab', 'aria-current': g === view.group ? 'true' : false, text: g }));
   }
   nav.append(primary);
-  const siblings = VIEWS.filter((v) => v.group === view.group);
+  const siblings = views.filter((v) => v.group === view.group);
   if (siblings.length > 1) {
     nav.append(h('div', { class: 'tab-row sub-tabs' }, siblings.map((v) =>
       h('a', { href: `#${v.id}`, class: v.id === view.id ? 'tab active' : 'tab', 'aria-current': v.id === view.id ? 'page' : false, text: v.label }))));
@@ -192,11 +207,22 @@ function render() {
       h('button', { text: 'Sign in with Google', onclick: doSignIn })));
     return;
   }
+  // Signed in with an account on neither list while the Limited access list is in use.
+  if (state.store && state.me.access === 'limited' && !state.me.limited && state.me.email) {
+    main.append(h('div', { class: 'panel' }, h('p', { text: `Signed in as ${state.me.email}. This account is not on the Bishopric or Limited access list, so the app shows only some screens.` }),
+      state.me.askWho ? h('button', { text: 'Which one are you?', onclick: () => askWhoYouAre() }) : null));
+  }
   try {
     view.render(main, ctx);
   } catch (e) {
     main.append(h('p', { class: 'error', text: `This screen could not be shown: ${e.message}` }));
     console.error(e);
+  }
+  // The limited app has no Settings screen: reload and sign out live here.
+  if (state.store && state.me.access === 'limited') {
+    main.append(h('p', { class: 'hint app-footer' }, `Version ${APP_VERSION}${state.me.limited ? ` · ${state.me.limited.name}` : ''} · `,
+      h('button', { class: 'link', text: 'Reload data', onclick: () => ctx.reload() }), ' · ',
+      h('button', { class: 'link', text: 'Sign out', onclick: () => ctx.signOut() })));
   }
 }
 

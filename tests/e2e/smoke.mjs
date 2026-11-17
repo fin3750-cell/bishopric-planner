@@ -696,6 +696,10 @@ assert.ok(cal.includes('The caller does not have permission') && cal.includes('n
 // Chrome logs the refused request itself; that one is expected here. Anything else still fails.
 const extra = errors.splice(errorsBefore26);
 errors.push(...extra.filter((e) => !/status of 403 \(Forbidden\)/.test(e)));
+await go('Settings');                                       // the working stake Sheet again for the steps after
+await page.getByLabel('Stake Sheet link').fill(`https://docs.google.com/spreadsheets/d/${STAKE_ID}/edit`);
+await page.getByRole('button', { name: 'Save for everyone' }).click();
+await page.getByText('Stake Sheet saved for everyone').waitFor();
 step('no access to the stake Sheet: the calendar says so and still shows the rest');
 
 // 27. WardBullet program pasted: speakers become talks after review, dated announcements become calendar items
@@ -751,6 +755,83 @@ wb = await page.textContent('#view .program-result');
 assert.equal((wb.match(/Already on the calendar/g) || []).length, 2, wb);
 assert.equal(await page.getByLabel('Add to calendar: New year service project').count(), 1);
 step('WardBullet program: speakers reviewed and recorded (visitor, choice, already recorded); dated announcements added once');
+
+// 28. Limited access: a person on the list sees only Callings, Calendar and Members (names and ages)
+await go('Settings');
+await page.getByLabel('Limited access name').fill('Juno Limited');
+await page.getByLabel('Limited access Google account').fill('juno.limited@example.invalid');
+await page.getByRole('button', { name: 'Add to limited access' }).click();
+await page.getByText('Juno Limited added').waitFor();
+const ah = sheet.tabs.Access[0];
+assert.deepEqual(sheet.tabs.Access.slice(1).map((r) => [r[ah.indexOf('name')], r[ah.indexOf('email')], r[ah.indexOf('active')]]), [['Juno Limited', 'juno.limited@example.invalid', true]]);
+const signInAs = async (email, tab) => {
+  await page.evaluate(() => localStorage.setItem('bishopric-planner-settings', JSON.stringify({})));
+  fakeEmail = email;
+  await page.reload();
+  await page.getByRole('link', { name: tab, exact: true }).click();
+  await page.getByRole('button', { name: 'Sign in with Google' }).click();
+  await page.getByText(/^Loaded \d+ members$/).waitFor();
+};
+const tabsShown = async () => [await page.$$eval('#tabs .tab-row:first-child .tab', (els) => els.map((e) => e.textContent)),
+  await page.$$eval('#tabs .sub-tabs .tab', (els) => els.map((e) => e.textContent))];
+await signInAs('juno.limited@example.invalid', 'Callings');
+await page.locator('#view .view-title', { hasText: 'Organization chart' }).waitFor();
+assert.deepEqual(await tabsShown(), [['Callings', 'Calendar', 'Members'], ['Org chart', 'Current', 'No calling']]);
+assert.equal(await page.locator('#view .badge.new').count(), 0, 'no callings on their way on the org chart');
+assert.ok(await page.locator('#view .holder').count() > 0);
+assert.equal(await page.locator('#view button.holder').count(), 0, 'holders cannot be opened');
+assert.ok((await page.textContent('#view .app-footer')).includes('Juno Limited'));
+await page.evaluate(() => { location.hash = 'pipeline'; });                      // a hidden screen
+await page.locator('#view .view-title', { hasText: 'Organization chart' }).waitFor();
+await go('Current', 'Current callings');
+assert.equal(await page.locator('#view button.card').count(), 0, 'current callings cannot be opened');
+assert.ok(!(await page.textContent('#view')).includes('Record in LCR'), 'no step badges');
+await go('Members');
+assert.equal(await page.locator('#view select').count(), 0, 'no category filter');
+const people = await page.textContent('#view');
+assert.ok(people.includes('Firwood, Fay') && people.includes('Age 33') && !people.includes("Shouldn't ask") && !people.includes("Won't accept") && !people.includes('Moved'), people);
+await noSideScroll('limited members');
+await page.locator('#view .card', { hasText: 'Firwood, Fay' }).click();
+const page2 = await page.textContent('#dlg');
+assert.ok(page2.includes('Age 33 (about)') && page2.includes('Current callings') && !page2.includes('Record talk') && !page2.includes('Category'), page2);
+await page.locator('#dlg').getByRole('button', { name: 'Propose a calling' }).click();
+await page.locator('#dlg').getByLabel('Organization').fill('Primary');
+await page.locator('#dlg').getByLabel('Calling').fill('Primary Pianist');
+await page.getByRole('button', { name: 'Send to the bishopric' }).click();
+await page.getByText('Sent to the bishopric: Primary Pianist for Firwood, Fay').waitFor();
+const pianist = sheet.tabs.Callings.find((r) => r[ch.indexOf('calling')] === 'Primary Pianist');
+assert.equal(pianist[ch.indexOf('entered_by')], 'Juno Limited');
+await go('Calendar');
+assert.equal(await page.locator('#view .cal-item.kind-speakers').count(), 0, 'no speakers on the limited calendar');
+await page.getByRole('button', { name: 'Add item' }).click();
+await page.getByLabel('Event date').fill('2026-11-29');
+await page.getByLabel('Event time').fill('19:00');
+await page.getByLabel('Event title').fill('Ward council meeting');
+await page.getByRole('button', { name: 'Add to calendar' }).click();
+await page.getByText('Added: Ward council meeting, 29 Nov 2026').waitFor();
+assert.equal(await page.locator('#view .cal-item', { hasText: 'Ward council meeting' }).getByRole('button', { name: 'Remove' }).count(), 1);
+assert.equal(await page.locator('#view .cal-item', { hasText: 'Christmas Devotional' }).getByRole('button', { name: 'Remove' }).count(), 0, 'cannot remove items others added');
+const evh = sheet.tabs.Events[0];
+assert.equal(sheet.tabs.Events.find((r) => r[evh.indexOf('title')] === 'Ward council meeting')[evh.indexOf('entered_by')], 'Juno Limited');
+await noSideScroll('limited calendar');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/18-limited.png`, fullPage: true });
+step('limited access: only Callings, Calendar and Members; names and ages; proposal sent; own calendar item removable');
+
+// 28b. An account on neither list while the Limited access list is in use: limited, with "Which one are you?"
+await signInAs('stranger@example.invalid', 'Members');
+await page.locator('#dlg[open]').waitFor();          // "Which one are you?" (some bishopric entries have no account yet)
+await page.locator('#dlg').getByRole('button', { name: 'Not now' }).click();
+assert.deepEqual((await tabsShown())[0], ['Callings', 'Calendar', 'Members']);
+assert.ok((await page.textContent('#view')).includes('This account is not on the Bishopric or Limited access list'));
+step('an account on neither list sees the limited app and can still say which bishopric member it is');
+
+// 28c. Back as a bishopric member: the full app, and the proposal is under In progress with who sent it
+await signInAs('tess.sample@gmail.com', 'Callings');
+assert.deepEqual((await tabsShown())[0], ['Speakers', 'Callings', 'Calendar', 'Members', 'Import', 'Settings']);
+await go('In progress', 'Calls and releases in progress');
+const proposedCard = await page.locator('#view .card', { hasText: 'Primary Pianist' }).textContent();
+assert.ok(proposedCard.includes('Firwood, Fay') && proposedCard.includes('by Juno Limited'), proposedCard);
+step('back in the full app, the limited person\'s proposal shows under Proposed with their name');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');

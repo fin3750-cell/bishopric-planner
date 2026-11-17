@@ -168,6 +168,13 @@ export function normEmail(email) {
 }
 
 // The Bishopric list entry for a signed-in Google account, or null.
+// The Limited access list entry for a Google account (active rows only), or null.
+export function accessForEmail(rows, email) {
+  const e = normEmail(email);
+  if (!e) return null;
+  return rows.find((r) => normEmail(r.email) === e && !isTrue(r.void) && String(r.active).toUpperCase() !== 'FALSE') || null;
+}
+
 export function bishopricForEmail(rows, email) {
   const e = normEmail(email);
   if (!e) return null;

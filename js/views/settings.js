@@ -4,7 +4,7 @@
 import { APP_VERSION, CLIENT_ID, SHEET_ID } from '../../config.js';
 import { spreadsheetIdFrom } from '../sheets.js';
 import { saveSettings } from '../settings.js';
-import { makeId } from '../members.js';
+import { makeId, isTrue, accessForEmail, bishopricForEmail } from '../members.js';
 import { h, add, field, select, busy, toast } from '../ui.js';
 
 export function renderSettings(root, ctx) {
@@ -55,8 +55,40 @@ export function renderSettings(root, ctx) {
       ctx.signedIn() ? h('button', { class: 'secondary', text: 'Reload data', onclick: () => ctx.reload() }) : null,
       ctx.signedIn() ? h('button', { class: 'secondary', text: 'Sign out', onclick: () => ctx.signOut() }) : null),
     ctx.signedIn() ? bishopricSection(ctx) : h('p', { class: 'hint', text: 'Sign in to see and edit the Bishopric list.' }),
+    ctx.signedIn() ? limitedSection(ctx) : null,
     ctx.signedIn() ? ctx.features.flatMap((f) => (f.settingsSections ? f.settingsSections(ctx) : [])) : null,
     h('p', { class: 'hint', text: `Version ${APP_VERSION}. Settings are saved on this device only. Member data is read from the Sheet each time and is not stored on the device.` }));
+}
+
+// People who use the limited app. Saved in the Sheet's Access tab. Removing sets active = FALSE.
+function limitedSection(ctx) {
+  const rows = ctx.store.records('Access').filter((r) => r.email && String(r.active).toUpperCase() !== 'FALSE' && !isTrue(r.void));
+  const list = h('ul', { class: 'rows' }, rows.map((r) => {
+    const remove = h('button', { class: 'small secondary', text: 'Remove' });
+    remove.addEventListener('click', () => {
+      if (!window.confirm(`Take ${r.name || r.email} off the Limited access list?`)) return;
+      busy(remove, async () => { await ctx.store.update('Access', [{ id: r.id, fields: { active: false } }]); toast('Removed'); ctx.refresh(); }).catch(() => {});
+    });
+    return h('li', { class: 'row' }, h('span', {}, h('strong', { text: r.name || '(no name)' }), h('span', { class: 'meta small', text: ` · ${r.email}` })), remove);
+  }));
+  const name = h('input', { type: 'text', placeholder: 'First Last', 'aria-label': 'Limited access name' });
+  const email = h('input', { type: 'email', placeholder: 'name@gmail.com', 'aria-label': 'Limited access Google account' });
+  const addBtn = h('button', { class: 'secondary', text: 'Add to limited access' });
+  addBtn.addEventListener('click', () => busy(addBtn, async () => {
+    const n = name.value.trim();
+    const e = email.value.trim();
+    if (!n || !/@/.test(e)) throw new Error('Enter a name and their Google account.');
+    if (accessForEmail(ctx.store.records('Access'), e)) throw new Error(`${e} is already on the list.`);
+    if (bishopricForEmail(ctx.store.records('Bishopric'), e)) throw new Error(`${e} is on the Bishopric list, which sees the whole app.`);
+    await ctx.store.add('Access', [{ id: makeId('a'), name: n, email: e, active: true }]);
+    toast(`${n} added`);
+    ctx.refresh();
+  }).catch(() => {}));
+  return h('section', { class: 'sub' },
+    h('h3', { text: 'Limited access' }),
+    h('p', { class: 'hint', text: 'People signed in with these Google accounts see only Callings (the org chart with current callings, current callings, members with no calling, and Propose a calling), the Calendar (they can add items and remove their own) and a member list of names and ages. This hides screens in the app; it does not make anything private, because anyone the Sheet is shared with can open it in Google Sheets. Each person also needs the Sheet shared with them and must be added as a test user in Google Cloud to sign in. Once this list has anyone on it, accounts on neither list also see the limited app until they choose "Which one are you?".' }),
+    rows.length ? list : h('p', { class: 'empty', text: 'No one on the list.' }),
+    h('div', { class: 'inline-form' }, field('Name', name), field('Google account', email), addBtn));
 }
 
 function bishopricSection(ctx) {

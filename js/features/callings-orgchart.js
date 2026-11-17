@@ -7,15 +7,18 @@ import { ORGS, ORG_NAMES, OTHER, OUTSIDE } from './callings-orgs.js';
 import { pendingLabel, isCurrent, isPending, tenureMonths, formatTenure } from './callings-logic.js';
 
 function holderButton(c, today, openCalling, ctx) {
-  return h('button', { class: 'holder', onclick: () => openCalling(c.id, ctx) },
+  // The limited app: a name, not a link to the calling's page.
+  return h(ctx.limited() ? 'span' : 'button', { class: 'holder', onclick: ctx.limited() ? null : () => openCalling(c.id, ctx) },
     h('span', { class: 'holder-name', text: c.member_name }),
     isPending(c) ? h('span', { class: 'badge new', text: pendingLabel(c) }) : null,
     isCurrent(c) && c.sustained_on ? h('span', { class: 'meta', text: formatTenure(tenureMonths(c, today)) }) : null);
 }
 
-export function renderOrgChart(root, ctx, { openCalling }) {
+export function renderOrgChart(root, ctx, { openCalling, proposeButton }) {
   const today = ctx.today();
-  const active = ctx.store.records('Callings').filter((c) => isCurrent(c) || isPending(c));
+  // The limited app shows current callings only, not ones on their way.
+  const active = ctx.store.records('Callings').filter((c) => isCurrent(c) || (!ctx.limited() && isPending(c)));
+  if (proposeButton) add(root, h('div', { class: 'toolbar' }, proposeButton(ctx)));
   const byOrg = new Map();
   for (const c of active) {
     const org = c.organization || OTHER;
