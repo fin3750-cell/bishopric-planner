@@ -240,7 +240,7 @@ export function proposeCalling(ctx, memberId) {
     const calling = h('input', { type: 'text', list: 'calling-list', placeholder: 'Calling', autocomplete: 'off', 'aria-label': 'Calling' });
     const notes = h('input', { type: 'text', placeholder: 'Note (optional)', 'aria-label': 'Note' });
     calling.addEventListener('change', () => { if (!org.value.trim()) org.value = organizationFor(calling.value).organization; });
-    const create = h('button', { text: 'Add to In progress' });
+    const create = h('button', { text: ctx.limited() ? 'Send to the bishopric' : 'Add to In progress' });
     create.addEventListener('click', () => busy(create, async () => {
       const m = members.find((x) => normName(x.name) === normName(who.value));
       if (!m) throw new Error('Choose the member from the list (type part of the name).');
@@ -248,16 +248,16 @@ export function proposeCalling(ctx, memberId) {
       await ctx.store.add('Callings', [{
         id: makeId('c'), member_id: m.id, member_name: m.name, organization: org.value.trim(), calling: calling.value.trim(),
         proposed_on: ctx.today(), source: 'app', notes: notes.value.trim(),
-        entered_by: ctx.settings.initials, entered_at: ctx.stamp(),
+        entered_by: ctx.who(), entered_at: ctx.stamp(),
       }]);
-      toast(`Proposed: ${calling.value.trim()} for ${m.name}`);
+      toast(ctx.limited() ? `Sent to the bishopric: ${calling.value.trim()} for ${m.name}` : `Proposed: ${calling.value.trim()} for ${m.name}`);
       close(); ctx.refresh();
     }).catch(() => {}));
     const all = callings(ctx);
     return [
       field('Member', who), field('Organization', org), field('Calling', calling),
       field('Note', notes),
-      h('p', { class: 'hint', text: 'It starts under Proposed. After the bishop\'s approval, choose who will ask.' }),
+      h('p', { class: 'hint', text: ctx.limited() ? 'The bishopric will consider it.' : 'It starts under Proposed. After the bishop\'s approval, choose who will ask.' }),
       create,
       datalist('member-list', members.map((m) => m.name).sort((a, b) => a.localeCompare(b))),
       datalist('org-list', [...ORG_NAMES, ...uniq(all.map((c) => c.organization)).filter((o) => !ORG_NAMES.includes(o))]),
@@ -303,8 +303,9 @@ function renderCurrent(root, ctx) {
       ul.append(card(c));
     }
   };
-  const card = (c) => h('li', {}, h('button', { class: 'card', onclick: () => openCalling(c.id, ctx) },
-    h('span', { class: 'card-top' }, h('span', { class: 'name', text: c.calling }), taskBadges(c, ctx)),
+  // The limited app: no step badges and no calling page.
+  const card = (c) => h('li', {}, h(ctx.limited() ? 'div' : 'button', { class: 'card', onclick: ctx.limited() ? null : () => openCalling(c.id, ctx) },
+    h('span', { class: 'card-top' }, h('span', { class: 'name', text: c.calling }), ctx.limited() ? null : taskBadges(c, ctx)),
     h('span', { class: 'meta', text: [c.member_name, view.sort === 'tenure' ? c.organization : '', formatTenure(tenureMonths(c, today))].filter(Boolean).join(' · ') })));
   const search = h('input', { type: 'search', placeholder: 'Search name or calling', value: view.search, 'aria-label': 'Search' });
   search.addEventListener('input', () => { view.search = search.value; draw(); });
@@ -340,7 +341,7 @@ function stageItem(ctx, stage, c) {
   const badge = (text, cls = 'new') => h('span', { class: `badge ${cls}`, text });
   switch (stage) {
     case 'proposed':
-      return callingCard(ctx, c, { meta: c.proposed_on ? `Proposed ${formatDate(c.proposed_on)}` : '' });
+      return callingCard(ctx, c, { meta: [c.proposed_on ? `Proposed ${formatDate(c.proposed_on)}` : '', c.entered_by ? `by ${c.entered_by}` : ''].filter(Boolean).join(' ') });
     case 'approved': {
       const who = whoControl(ctx, '', `Who will ask: ${c.member_name}`);
       who.addEventListener('change', () => {
@@ -542,7 +543,7 @@ function renderNoCalling(root, ctx) {
     for (const r of rows) {
       listEl.append(h('li', {}, h('button', { class: 'card', onclick: () => ctx.openMember(r.member.id) },
         h('span', { class: 'name', text: r.member.name }),
-        h('span', { class: 'meta', text: [r.age === null ? 'Age unknown' : `Age ${r.age}`, r.member.gender].filter(Boolean).join(' · ') }))));
+        h('span', { class: 'meta', text: [r.age === null ? 'Age unknown' : `Age ${r.age}`, ctx.limited() ? '' : r.member.gender].filter(Boolean).join(' · ') }))));
     }
   };
   const minAge = select([{ value: '18', label: 'Adults (18+)' }, { value: '12', label: 'Youth and adults (12+)' }], view.minAge, { 'aria-label': 'Ages' });
@@ -593,20 +594,34 @@ function settingsSections(ctx) {
       : 'Not chosen yet, so the Executive Secretary on the Bishopric list is used. Every calling waiting to be recorded in LCR is assigned to this person unless its own page names someone else.'))];
 }
 
+// The limited app's member page: current callings and "Propose a calling".
+function limitedMemberSections(m, ctx, close) {
+  const today = ctx.today();
+  const list = callingsFor(m.id, callings(ctx)).filter(isCurrent);
+  return [h('section', { class: 'sub' },
+    h('h3', { text: 'Current callings' }),
+    list.length ? h('ul', { class: 'rows' }, list.map((c) => h('li', { class: 'row' },
+      h('span', { text: `${c.calling}${c.organization ? ` (${c.organization})` : ''}` }),
+      h('span', { class: 'meta', text: formatTenure(tenureMonths(c, today)) }))))
+      : h('p', { class: 'empty', text: 'No current callings on record.' }),
+    h('button', { class: 'secondary', text: 'Propose a calling', onclick: () => { close(); proposeCalling(ctx, m.id); } }))];
+}
+
 export const callingsFeature = {
   id: 'callings',
   group: 'Callings',
   tables,
   views: [
-    { id: 'orgchart', label: 'Org chart', title: 'Organization chart', render: (root, ctx) => renderOrgChart(root, ctx, { openCalling }) },
-    { id: 'callings', label: 'Current', title: 'Current callings', render: renderCurrent },
+    { id: 'orgchart', label: 'Org chart', title: 'Organization chart', limited: true, render: (root, ctx) => renderOrgChart(root, ctx, { openCalling, proposeButton }) },
+    { id: 'callings', label: 'Current', title: 'Current callings', limited: true, render: renderCurrent },
     { id: 'pipeline', label: 'In progress', title: 'Calls and releases in progress', render: renderPipeline },
     { id: 'sunday', label: 'Sunday', title: 'Sunday business', render: renderSunday },
     { id: 'tasks', label: 'My tasks', title: 'My tasks', render: renderTasks },
-    { id: 'nocalling', label: 'No calling', title: 'Members with no calling', render: renderNoCalling },
+    { id: 'nocalling', label: 'No calling', title: 'Members with no calling', limited: true, render: renderNoCalling },
     { id: 'lcrimport', label: 'LCR import', title: 'Import the LCR callings report', render: (root, ctx) => renderLcrImport(root, ctx, { go: ctx.go }) },
   ],
   memberSections,
+  limitedMemberSections,
   // Settings > Bishopric: suggest the ward's bishopric and executive secretary from current callings.
   suggestBishopric: (ctx) => bishopricFromCallings(callings(ctx)),
   settingsSections,

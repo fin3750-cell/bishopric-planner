@@ -16,6 +16,12 @@ const SCHEMA = {
     columns: ['id', 'initials', 'name', 'role', 'member_id', 'active', 'email'],
     dates: [],
   },
+  // People who see only Callings (org chart, current, propose), Calendar and a names-and-ages member
+  // list. This hides screens in the app; it is not privacy (they can still open the Sheet).
+  Access: {
+    columns: ['id', 'name', 'email', 'active'],
+    dates: [],
+  },
   // Settings shared by everyone (for example the stake sheet's link). id is the setting's name.
   Settings: {
     columns: ['id', 'value', 'updated_by', 'updated_at'],

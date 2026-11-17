@@ -134,7 +134,9 @@ export function comingUpText({ items, notes = [], include }) {
     else {
       // "MS6 - Ward Conference" reads "Ward Conference" in the ward's own bulletin.
       const title = it.kind === 'ward' ? it.title.replace(/^[A-Z]{2,3}\s?\d?\s*-\s+/, '') : it.title;
-      what = `${title}${it.notes && it.kind !== 'fast' ? ` (${it.notes})` : ''}`;
+      // Notes saying where an item came from ("From the WardBullet program of …") are not for the bulletin.
+      const note = it.kind !== 'fast' && it.notes && !/^From the WardBullet program\b/i.test(it.notes) ? it.notes : '';
+      what = `${title}${note ? ` (${note})` : ''}`;
     }
     lines.push(`${when}: ${what}`);
   }

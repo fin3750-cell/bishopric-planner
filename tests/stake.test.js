@@ -128,6 +128,8 @@ test('coming up: date ranges and the copy text', () => {
   assert.ok(all.includes('Sun, Jan 10: Speakers: Amy Arbor, Visiting Speaker'));   // "Last, First" written as "First Last"
   assert.ok(all.includes('Fri, Jan 15: Order programs (TS)'));
   assert.equal(comingUpText({ items, notes, include: { events: false, fast: false, notes: false, speakers: false, todos: false } }), '');
+  const imported = [{ kind: 'event', date: '2027-01-05', time: '', title: 'Devotional', notes: 'From the WardBullet program of 3 Jan 2027' }];
+  assert.equal(comingUpText({ items: imported, include: { events: true } }), 'Tue, Jan 5: Devotional');   // where it came from is left out
   // What the Coming up panel uses: general ward information only (ward items and stake events).
   assert.equal(comingUpText({ items, include: { events: true } }), [
     'Sat, Jan 2, 10:00 AM: Stake Baptisms',

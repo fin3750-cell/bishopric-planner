@@ -93,7 +93,8 @@ function itemRow(ctx, it) {
     body = h('span', {}, h('strong', { text: it.title }), it.who ? ` · ${it.who}` : '');
   }
   let remove = null;
-  if (it.kind === 'event') {
+  // The limited app may remove only the items its person added.
+  if (it.kind === 'event' && (!ctx.limited() || String(it.ref.entered_by || '') === String(ctx.who() || ''))) {
     remove = h('button', { class: 'small secondary', text: 'Remove' });
     remove.addEventListener('click', () => {
       if (!window.confirm(`Remove "${it.title}" on ${formatDate(it.date)}? It stays in the Sheet, marked as removed.`)) return;
@@ -115,7 +116,7 @@ function addEvent(ctx) {
     const save = h('button', { text: 'Add to calendar' });
     save.addEventListener('click', () => busy(save, async () => {
       if (!date.value || !title.value.trim()) throw new Error('Enter the date and what it is.');
-      await ctx.store.add('Events', [{ id: makeId('ev'), date: date.value, time: time.value, title: title.value.trim(), notes: notes.value.trim(), entered_by: ctx.settings.initials, entered_at: ctx.stamp() }]);
+      await ctx.store.add('Events', [{ id: makeId('ev'), date: date.value, time: time.value, title: title.value.trim(), notes: notes.value.trim(), entered_by: ctx.who(), entered_at: ctx.stamp() }]);
       toast(`Added: ${title.value.trim()}, ${formatDate(date.value)}`);
       close(); ctx.refresh();
     }).catch(() => {}));
@@ -130,7 +131,7 @@ function comingUp(ctx, data) {
   const { from, to } = comingUpRange(ctx.today(), view.range);
   const items = calendarItems({
     from, to, stake: data, otherWards: false, events: ctx.store.records('Events'),
-    talks: ctx.store.records('Talks'), todos: ctx.store.records('Tasks'),
+    talks: ctx.limited() ? [] : ctx.store.records('Talks'), todos: ctx.limited() ? [] : ctx.store.records('Tasks'),
   });
   const text = comingUpText({ items, include: { events: true } });
   const range = select([{ value: 'month', label: 'Next month' }, { value: 'weeks2', label: 'Next 2 weeks' }, { value: 'nextMonth', label: 'Next calendar month' }],
@@ -162,7 +163,7 @@ function renderCalendar(root, ctx) {
   const data = stakeData(ctx);
   const items = calendarItems({
     from, to, stake: data, otherWards: view.otherWards, events: ctx.store.records('Events'),
-    talks: ctx.store.records('Talks'), todos: ctx.store.records('Tasks'),
+    talks: ctx.limited() ? [] : ctx.store.records('Talks'), todos: ctx.limited() ? [] : ctx.store.records('Tasks'),
   });
   const notes = monthNotes({ from, to, stake: data });
   const other = h('input', { type: 'checkbox', checked: view.otherWards, 'aria-label': 'Show other wards\' stake events' });
@@ -264,8 +265,8 @@ export const calendarFeature = {
   group: 'Calendar',
   tables,
   views: [
-    { id: 'calendar', label: 'Calendar', title: 'Calendar', render: renderCalendar },
-    { id: 'stake', label: 'Stake', title: 'Stake directory', render: renderStake },
+    { id: 'calendar', label: 'Calendar', title: 'Calendar', limited: true, render: renderCalendar },
+    { id: 'stake', label: 'Stake', title: 'Stake directory', limited: true, render: renderStake },
   ],
   settingsSections,
 };

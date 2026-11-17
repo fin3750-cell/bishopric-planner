@@ -22,7 +22,31 @@ function matches(m, f) {
   return !f.search || normName(m.name).includes(normName(f.search));
 }
 
+// The limited app: active members' names and ages only, nothing else.
+function renderMembersLimited(root, ctx) {
+  const listEl = h('ul', { class: 'cards' });
+  const countEl = h('p', { class: 'summary' });
+  const draw = () => {
+    const today = ctx.today();
+    const shown = ctx.store.records('Members').filter((m) => m.id && isActive(m) && (!filters.search || normName(m.name).includes(normName(filters.search))))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    countEl.textContent = `${shown.length} ${shown.length === 1 ? 'person' : 'people'}`;
+    clear(listEl);
+    for (const m of shown) {
+      const age = currentAge(m, today);
+      listEl.append(h('li', {}, h('button', { class: 'card', onclick: () => openMember(m.id, ctx) },
+        h('span', { class: 'name', text: m.name }),
+        h('span', { class: 'meta', text: age === null ? 'Age unknown' : `Age ${age}` }))));
+    }
+  };
+  const search = h('input', { type: 'search', placeholder: 'Search name', value: filters.search, 'aria-label': 'Search name' });
+  search.addEventListener('input', () => { filters.search = search.value; draw(); });
+  root.append(h('div', { class: 'toolbar' }, search), h('p', { class: 'hint', text: 'Tap a name to see their current callings or propose a calling.' }), countEl, listEl);
+  draw();
+}
+
 export function renderMembers(root, ctx) {
+  if (ctx.limited()) { renderMembersLimited(root, ctx); return; }
   const listEl = h('ul', { class: 'cards' });
   const countEl = h('p', { class: 'summary' });
   const draw = () => {
@@ -56,6 +80,15 @@ export function openMember(id, ctx) {
   const m = ctx.store.records('Members').find((x) => x.id === id);
   if (!m) { toast('That person is not in the Members tab.', 'error'); return; }
   const today = ctx.today();
+  if (ctx.limited()) {
+    // The limited app: age, current callings and "Propose a calling" only.
+    openDialog(m.name, (close) => {
+      const age = currentAge(m, today);
+      return [h('p', { class: 'meta', text: age === null ? 'Age unknown' : `Age ${age} (about)` }),
+        ctx.features.flatMap((f) => (f.limitedMemberSections ? f.limitedMemberSections(m, ctx, close) : []))];
+    });
+    return;
+  }
   openDialog(m.name, (close) => {
     const age = currentAge(m, today);
     const cat = select(CATEGORIES, m.category || '', { 'aria-label': 'Category' });
