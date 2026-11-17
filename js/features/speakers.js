@@ -1,10 +1,10 @@
-// Speaker planner feature: who to ask, upcoming talks, talk history, and the talk/decline parts of
-// a member's page. Uses the Talks and Refusals tabs of the Sheet.
+// Speaker planner feature: who to ask, everyone by color, upcoming talks, talk history, and the
+// talk/decline parts of a member's page. Uses the Talks and Refusals tabs of the Sheet.
 
 import { formatDate, formatMonth, nextSunday } from '../dates.js';
 import { makeId, isTrue, categoryLabel } from '../members.js';
 import { h, add, clear, field, select, busy, toast } from '../ui.js';
-import { buildAskList, upcomingTalks, pastTalks, talksFor, refusalsFor } from './speakers-logic.js';
+import { buildAskList, everyoneList, COLORS, upcomingTalks, pastTalks, talksFor, refusalsFor } from './speakers-logic.js';
 
 const tables = {
   Talks: {
@@ -91,6 +91,83 @@ function renderAsk(root, ctx) {
     h('div', { class: 'toolbar' }, search, group, gender),
     h('p', { class: 'hint', text: `Listed: no talk in the last ${ctx.settings.windowYears} years. "Ask soon" first, then no talk on record, then longest since their last talk; "Shouldn't ask" and "Won't accept" are last, grayed. Searching also finds people not on the list (for example someone who spoke recently). Tap a name to schedule a talk or record a decline.` }),
     summaryEl, listEl, othersEl);
+  draw();
+}
+
+// ---------- Everyone: every member, colored by how long since they spoke ----------
+
+const everyoneView = { search: '', color: 'all', sort: 'name' };
+
+function span(months) {
+  if (months % 12 === 0) return months === 12 ? '1 year' : `${months / 12} years`;
+  return `${months} months`;
+}
+
+function range(a, b) {
+  return a % 12 === 0 && b % 12 === 0 ? `${a / 12}–${b / 12} years` : `${a}–${b} months`;
+}
+
+function colorLabels(bands) {
+  return {
+    yellow: 'Ask soon (your pick)',
+    none: `No talk in ${span(bands.months)}`,
+    green3: `Spoke ${range(bands.m2, bands.months)} ago`,
+    green2: `Spoke ${range(bands.m1, bands.m2)} ago`,
+    green1: `Spoke within ${span(bands.m1)}, or scheduled`,
+    red: "Shouldn't ask / Won't accept",
+  };
+}
+
+function renderEveryone(root, ctx) {
+  const keyEl = h('div', { class: 'key', role: 'group', 'aria-label': 'Color key: tap a color to show only those people' });
+  const summaryEl = h('p', { class: 'summary' });
+  const noteEl = h('p', { class: 'hint' });
+  const listEl = h('ul', { class: 'cards', 'aria-live': 'polite' });
+  const talks = ctx.store.records('Talks');
+  const draw = () => {
+    const res = everyoneList({
+      members: ctx.store.records('Members'), talks, refusals: ctx.store.records('Refusals'),
+      today: ctx.today(), settings: ctx.settings, filters: everyoneView,
+    });
+    const labels = colorLabels(res.bands);
+    clear(keyEl);
+    for (const c of COLORS) {
+      const on = everyoneView.color === c;
+      const chip = h('button', { class: 'key-chip', 'aria-pressed': on ? 'true' : 'false' },
+        h('span', { class: `swatch tone-${c}`, 'aria-hidden': 'true' }), `${labels[c]} (${res.counts[c]})`);
+      chip.addEventListener('click', () => { everyoneView.color = on ? 'all' : c; draw(); });
+      keyEl.append(chip);
+    }
+    summaryEl.textContent = everyoneView.color === 'all' && !everyoneView.search
+      ? `${res.total} people`
+      : `${res.rows.length} of ${res.total} people shown${everyoneView.color !== 'all' ? ` (${labels[everyoneView.color]}; tap it again to show everyone)` : ''}`;
+    noteEl.textContent = res.historyStart
+      ? `The talk history starts ${formatMonth(res.historyStart)}, so "${labels.none}" can include people who spoke before then.` : '';
+    clear(listEl);
+    if (!res.rows.length) listEl.append(h('li', { class: 'empty', text: 'No one matches.' }));
+    for (const r of res.rows) {
+      const m = r.member;
+      const badges = [];
+      if (m.category && m.category !== 'not_now') badges.push(h('span', { class: 'badge plain', text: categoryLabel(m.category) }));
+      if (r.notNow) badges.push(h('span', { class: 'badge cat-not_now', text: m.category_until ? `Not now, until ${formatDate(m.category_until)}` : 'Not now' }));
+      if (r.next) badges.push(h('span', { class: 'badge new', text: `Scheduled ${formatDate(r.next)}` }));
+      if (r.declined) badges.push(h('span', { class: 'badge declined', text: `Declined ${formatDate(r.declined)}` }));
+      listEl.append(h('li', {},
+        h('button', { class: `card tone-${r.color}`, onclick: () => ctx.openMember(m.id) },
+          h('span', { class: 'card-top' }, h('span', { class: 'name', text: m.name }), badges),
+          h('span', { class: 'meta', text: `${ageText(r.age, m.gender)} · ${lastTalkText(r)}` }),
+          m.notes ? h('span', { class: 'note', text: m.notes }) : null)));
+    }
+  };
+  const search = h('input', { type: 'search', placeholder: 'Search name', value: everyoneView.search, 'aria-label': 'Search name' });
+  search.addEventListener('input', () => { everyoneView.search = search.value; draw(); });
+  const sort = select([{ value: 'name', label: 'A to Z' }, { value: 'oldest', label: 'Longest since a talk first' }, { value: 'color', label: 'By color' }],
+    everyoneView.sort, { 'aria-label': 'Sort' });
+  sort.addEventListener('change', () => { everyoneView.sort = sort.value; draw(); });
+  root.append(
+    h('div', { class: 'toolbar' }, search, sort),
+    h('p', { class: 'hint', text: `Every active member ${ctx.settings.minAge} and older. Green: spoke in the last ${ctx.settings.windowYears} years (a stronger green is more recent). Yellow: people you marked "Ask soon". Red: "Shouldn't ask" or "Won't accept". Your labels decide the color before talks do. Tap a name to open their page and change the label.` }),
+    keyEl, summaryEl, noteEl, listEl);
   draw();
 }
 
@@ -218,6 +295,7 @@ export const speakers = {
   tables,
   views: [
     { id: 'ask', label: 'Who to ask', render: renderAsk },
+    { id: 'everyone', label: 'Everyone', title: 'Everyone, by color', render: renderEveryone },
     { id: 'upcoming', label: 'Upcoming', render: renderUpcoming },
     { id: 'history', label: 'History', render: renderHistory },
   ],

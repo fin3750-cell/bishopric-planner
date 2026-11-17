@@ -8,4 +8,4 @@ export const CLIENT_ID = '791712061235-r9b1lvopgfgmsle8crtovsmburr1vjmc.apps.goo
 // Google only lets accounts the Sheet is shared with open it.
 export const SHEET_ID = '1-BUQa5ej4zfCu6DJMgrR6kbxOrCNZxBmnpJEx0OvPdY';
 
-export const APP_VERSION = '0.7.1';
+export const APP_VERSION = '0.8.0';
