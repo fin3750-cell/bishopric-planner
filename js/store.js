@@ -53,10 +53,10 @@ export class Store {
   records(name) { return this.tables[name] ? this.tables[name].records : []; }
 
   async load() {
-    const titles = await this.api.tabTitles();
-    for (const name of Object.keys(SCHEMA)) {
-      if (!titles.includes(name)) await this.api.addTab(name);
-    }
+    let tabs = await this.api.tabs();
+    const missingTabs = Object.keys(SCHEMA).filter((name) => !tabs.some((t) => t.title === name));
+    for (const name of missingTabs) await this.api.addTab(name);
+    if (missingTabs.length) tabs = await this.api.tabs();
     const names = Object.keys(SCHEMA);
     const values = await this.api.batchGet(names.map((n) => `${quoteTab(n)}!A1:ZZ`));
     const headerFixes = [];
@@ -79,6 +79,14 @@ export class Store {
       }
       this.tables[name] = { headers, records };
     });
+    // A tab needs at least as many columns as headers before the new headers can be written.
+    const widen = [];
+    for (const name of names) {
+      const tab = tabs.find((t) => t.title === name);
+      const need = this.tables[name].headers.length;
+      if (tab && tab.columnCount < need) widen.push({ sheetId: tab.sheetId, count: need - tab.columnCount });
+    }
+    if (widen.length) await this.api.addColumns(widen);
     if (headerFixes.length) await this.api.batchUpdateValues(headerFixes);
   }
 
