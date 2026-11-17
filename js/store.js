@@ -12,9 +12,8 @@ const SCHEMA = {
     dates: ['age_as_of', 'category_until', 'moved_in', 'last_in_list'],
   },
   // The people who can be assigned steps (initials used across the app).
-  // votes: FALSE for someone who does not vote on proposed callings (blank or TRUE: votes).
   Bishopric: {
-    columns: ['id', 'initials', 'name', 'role', 'member_id', 'active', 'email', 'votes'],
+    columns: ['id', 'initials', 'name', 'role', 'member_id', 'active', 'email'],
     dates: [],
   },
   // Settings shared by everyone (for example the stake sheet's link). id is the setting's name.

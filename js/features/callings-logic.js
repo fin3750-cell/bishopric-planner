@@ -1,5 +1,5 @@
-// Pure rules for callings: the stages of a call (proposed, vote, bishop approved, assigned, sustain,
-// record in LCR, set apart), releases, votes, to-dos, Sunday business, time in calling and who has
+// Pure rules for callings: the stages of a call (proposed, bishop approved, assigned to contact,
+// sustain, record in LCR, set apart), releases, to-dos, Sunday business, time in calling and who has
 // no calling. Each row of the Callings tab is one person in one calling.
 
 import { ageGroup, currentAge, isActive, isTrue, displayName, initialsFor } from '../members.js';
@@ -13,10 +13,6 @@ export const COLUMNS = ['id', 'member_id', 'member_name', 'organization', 'calli
   'set_apart_by', 'set_apart_on', 'record_by', 'recorded_on',
   'release_proposed_on', 'release_by', 'release_informed_on', 'released_on', 'release_record_by', 'release_recorded_on',
   'source', 'notes', 'entered_by', 'entered_at', 'void'];
-
-// Votes tab: one row per person per calling. vote is "support" or "oppose".
-export const VOTE_COLUMNS = ['id', 'calling_id', 'voter', 'vote', 'voted_on', 'entered_at', 'void'];
-export const VOTE_DATES = ['voted_on'];
 
 // Tasks tab: free to-dos ("Ask the Primary presidency for teacher names").
 export const TODO_COLUMNS = ['id', 'description', 'assigned_to', 'due_on', 'done_on', 'done_by', 'entered_by', 'entered_at', 'void'];
@@ -38,25 +34,27 @@ export const STEP_ORDER = ['approve', 'extend', 'sustain', 'record', 'set_apart'
 
 // The sections of the "In progress" screen, in order. Each calling in progress is in exactly one.
 export const STAGES = [
-  { id: 'proposed', label: 'Proposed', hint: 'No one has voted yet.' },
-  { id: 'vote', label: 'Vote', hint: 'Votes so far. When they are in, the bishop approves or not.' },
-  { id: 'approved', label: 'Bishop Approved', hint: 'Choose who will ask.' },
-  { id: 'assigned', label: 'Assigned', hint: 'The person assigned asks, then taps Accepted or Declined (on My tasks).' },
+  { id: 'proposed', label: 'Proposed', hint: 'Waiting for the bishop to approve (open one to record it).' },
+  { id: 'approved', label: 'Bishop Approved', hint: 'Choose who will contact them.' },
+  { id: 'assigned', label: 'Assigned to Contact', hint: 'The person assigned contacts them, then taps Accepted or Declined (on My tasks).' },
   { id: 'sustain', label: 'Sustain', hint: 'Accepted. Sustain them on the Sunday screen.' },
   { id: 'record', label: 'Sustained/LCR Record', hint: 'Sustained. Record the calling in LCR.' },
   { id: 'release', label: 'Releases', hint: 'Tell the member, release in sacrament meeting, record in LCR.' },
   { id: 'set_apart', label: 'Needs set apart', hint: 'Sustained and recorded, not yet set apart.' },
 ];
 
-function task(c, step) {
+// defaults: initials for a step when the calling names nobody, e.g. { record: 'KW' }: whoever
+// records callings in LCR (see recorderFrom).
+function task(c, step, defaults = {}) {
   const s = STEPS[step];
-  return { step, label: s.label, by: s.by ? String(c[s.by] || '').trim().toUpperCase() : '', calling: c };
+  const by = s.by ? String(c[s.by] || '').trim().toUpperCase() || String(defaults[step] || '').trim().toUpperCase() : '';
+  return { step, label: s.label, by, calling: c };
 }
 
 // phase: proposed | approved | to_sustain | serving | releasing | ended | not_approved | declined | void
 // tasks: what still has to happen, in order. A later date implies the earlier steps happened,
-// so a calling imported as sustained is not shown as needing a vote.
-export function callingState(c) {
+// so a calling imported as sustained is not shown as needing approval.
+export function callingState(c, defaults = {}) {
   if (isTrue(c.void)) return { phase: 'void', tasks: [] };
   if (c.declined_on) return { phase: 'declined', tasks: [] };
   if (c.not_approved_on) return { phase: 'not_approved', tasks: [] };
@@ -64,21 +62,21 @@ export function callingState(c) {
     const released = Boolean(c.released_on || c.release_recorded_on);
     const informed = Boolean(c.release_informed_on) || released;
     const tasks = [];
-    if (!informed) tasks.push(task(c, 'release_tell'));
-    else if (!released) tasks.push(task(c, 'release_announce'));
-    if (released && !c.release_recorded_on) tasks.push(task(c, 'release_record'));
+    if (!informed) tasks.push(task(c, 'release_tell', defaults));
+    else if (!released) tasks.push(task(c, 'release_announce', defaults));
+    if (released && !c.release_recorded_on) tasks.push(task(c, 'release_record', defaults));
     return { phase: released && c.release_recorded_on ? 'ended' : 'releasing', tasks };
   }
   const sustained = Boolean(c.sustained_on);
   const accepted = Boolean(c.accepted_on) || sustained;
   // extended_on: a call recorded as asked before this version of the app had an approval step.
   const approved = Boolean(c.approved_on || c.extended_on) || accepted;
-  if (!approved) return { phase: 'proposed', tasks: [task(c, 'approve')] };
-  if (!accepted) return { phase: 'approved', tasks: [task(c, 'extend')] };
-  if (!sustained) return { phase: 'to_sustain', tasks: [task(c, 'sustain')] };
+  if (!approved) return { phase: 'proposed', tasks: [task(c, 'approve', defaults)] };
+  if (!accepted) return { phase: 'approved', tasks: [task(c, 'extend', defaults)] };
+  if (!sustained) return { phase: 'to_sustain', tasks: [task(c, 'sustain', defaults)] };
   const tasks = [];
-  if (!c.recorded_on) tasks.push(task(c, 'record'));
-  if (!c.set_apart_on) tasks.push(task(c, 'set_apart'));
+  if (!c.recorded_on) tasks.push(task(c, 'record', defaults));
+  if (!c.set_apart_on) tasks.push(task(c, 'set_apart', defaults));
   return { phase: 'serving', tasks };
 }
 
@@ -91,45 +89,21 @@ export function pendingLabel(c) {
   return p;
 }
 
-// ---------- votes ----------
-
-// Initials of the people who vote: everyone active on the Bishopric list unless their "votes"
-// column is FALSE. `people` is the active list (already upper-cased initials).
-export function votersFrom(people) {
-  return people.filter((p) => String(p.votes ?? '').trim().toUpperCase() !== 'FALSE').map((p) => p.initials);
-}
-
-// Each person's vote on one calling. Removed rows are skipped; if a person has two rows, the
-// lower one in the Sheet counts (the app updates a person's row rather than adding a second).
-export function castVotes(callingId, votes) {
-  const out = new Map();
-  for (const v of votes) {
-    if (String(v.calling_id) !== String(callingId) || isTrue(v.void)) continue;
-    const who = String(v.voter || '').trim().toUpperCase();
-    const vote = String(v.vote || '').trim().toLowerCase();
-    if (!who || (vote !== 'support' && vote !== 'oppose')) continue;
-    out.set(who, v);
-  }
-  return out;
-}
-
-// support / oppose: initials, in the order of the voter list, then anyone else who voted.
-// waiting: voters who have not voted. allIn: there is a voter list and everyone on it voted.
-export function voteTally(callingId, votes, voters) {
-  const cast = castVotes(callingId, votes);
-  const order = [...voters, ...[...cast.keys()].filter((k) => !voters.includes(k)).sort()];
-  const support = order.filter((k) => cast.has(k) && cast.get(k).vote.trim().toLowerCase() === 'support');
-  const oppose = order.filter((k) => cast.has(k) && cast.get(k).vote.trim().toLowerCase() === 'oppose');
-  const waiting = voters.filter((k) => !cast.has(k));
-  return { support, oppose, waiting, allIn: voters.length > 0 && waiting.length === 0, count: cast.size };
+// Who records callings in LCR: the saved setting, or else the one active person on the Bishopric
+// list whose role is Executive Secretary. '' when neither is known.
+export function recorderFrom(people, saved) {
+  const v = String(saved || '').trim().toUpperCase();
+  if (v) return v === 'NONE' ? '' : v;
+  const sec = people.filter((p) => /executive secretary/i.test(String(p.role || '')));
+  return sec.length === 1 ? String(sec[0].initials).trim().toUpperCase() : '';
 }
 
 // ---------- stages ----------
 
 // Which "In progress" section a calling is in, or null when nothing is left to do (or it is closed).
-export function stageOf(c, votes) {
+export function stageOf(c) {
   const { phase, tasks } = callingState(c);
-  if (phase === 'proposed') return castVotes(c.id, votes).size ? 'vote' : 'proposed';
+  if (phase === 'proposed') return 'proposed';
   if (phase === 'approved') return String(c.extend_by || '').trim() ? 'assigned' : 'approved';
   if (phase === 'to_sustain') return 'sustain';
   if (phase === 'releasing') return tasks.length ? 'release' : null;
@@ -146,10 +120,10 @@ function byOrgThenName(a, b) {
 }
 
 // { stageId: [callings] } for every stage, each list sorted by organization, then name.
-export function pipeline(callings, votes) {
+export function pipeline(callings) {
   const out = Object.fromEntries(STAGES.map((s) => [s.id, []]));
   for (const c of live(callings)) {
-    const s = stageOf(c, votes);
+    const s = stageOf(c);
     if (s) out[s].push(c);
   }
   for (const list of Object.values(out)) list.sort(byOrgThenName);
@@ -208,28 +182,25 @@ export function formatTenure(months) {
 
 function live(callings) { return callings.filter((c) => !isTrue(c.void)); }
 
-export function openTasks(callings) {
+export function openTasks(callings, defaults = {}) {
   const out = [];
-  for (const c of live(callings)) out.push(...callingState(c).tasks);
+  for (const c of live(callings)) out.push(...callingState(c, defaults).tasks);
   return out.sort((a, b) => STEP_ORDER.indexOf(a.step) - STEP_ORDER.indexOf(b.step) ||
     String(a.calling.organization).localeCompare(String(b.calling.organization)) ||
     String(a.calling.member_name).localeCompare(String(b.calling.member_name)));
 }
 
 // What one person has to do (initials compared without case):
-//   votes:  callings waiting for this person's vote (only if they are on the voter list)
-//   asks:   approved callings this person was assigned to extend
+//   asks:   approved callings this person was assigned to contact
 //   steps:  record in LCR, set apart and release steps assigned to this person
 //   todos:  open to-dos assigned to this person
 //   unassignedTodos: open to-dos nobody has
-export function myWork({ callings, votes = [], voters = [], todos = [], initials }) {
+export function myWork({ callings, todos = [], initials, defaults = {} }) {
   const me = String(initials || '').trim().toUpperCase();
-  const tasks = openTasks(callings);
+  const tasks = openTasks(callings, defaults);
   const open = openTodos(todos);
   const who = (t) => String(t.assigned_to || '').trim().toUpperCase();
   return {
-    votes: me && voters.includes(me)
-      ? tasks.filter((t) => t.step === 'approve' && !castVotes(t.calling.id, votes).has(me)).map((t) => t.calling) : [],
     asks: me ? tasks.filter((t) => t.step === 'extend' && t.by === me) : [],
     steps: me ? tasks.filter((t) => ['record', 'set_apart', 'release_tell', 'release_record'].includes(t.step) && t.by === me) : [],
     todos: me ? open.filter((t) => who(t) === me) : [],

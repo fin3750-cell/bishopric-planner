@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   callingState, isCurrent, isPending, monthsBetween, tenureMonths, formatTenure,
   myWork, sundayBusiness, currentCallings, membersWithoutCalling, openTasks,
-  stageOf, pipeline, votersFrom, castVotes, voteTally, openTodos, recentlyDone, pendingLabel,
+  stageOf, pipeline, recorderFrom, openTodos, recentlyDone, pendingLabel,
 } from '../js/features/callings-logic.js';
 
 const TODAY = '2026-11-16';
@@ -27,9 +27,8 @@ test('call steps move in order; a later date implies the earlier ones', () => {
 });
 
 test('stages of the In progress screen', () => {
-  const votes = [{ calling_id: 'v1', voter: 'aa', vote: 'support' }];
+  const votes = undefined;   // stages no longer depend on votes
   assert.equal(stageOf({ id: 'p1', proposed_on: '2026-11-01' }, votes), 'proposed');
-  assert.equal(stageOf({ id: 'v1', proposed_on: '2026-11-01' }, votes), 'vote');
   assert.equal(stageOf({ id: 'a1', approved_on: '2026-11-02' }, votes), 'approved');
   assert.equal(stageOf({ id: 'a2', approved_on: '2026-11-02', extend_by: 'ts' }, votes), 'assigned');
   assert.equal(stageOf({ id: 's1', accepted_on: '2026-11-04', extend_by: 'TS' }, votes), 'sustain');
@@ -45,24 +44,17 @@ test('stages of the In progress screen', () => {
   assert.equal(stageOf({ id: 'v1', proposed_on: '2026-11-01', void: true }, votes), null);
 });
 
-test('votes: who votes, latest row per person, tally', () => {
-  const people = [{ initials: 'AA', votes: '' }, { initials: 'TS', votes: true }, { initials: 'DW', votes: 'TRUE' }, { initials: 'ES', votes: false }, { initials: 'XX', votes: 'FALSE' }];
-  assert.deepEqual(votersFrom(people), ['AA', 'TS', 'DW']);   // blank counts as yes; FALSE (boolean or text) is no
-  const votes = [
-    { id: '1', calling_id: 'c1', voter: 'ts', vote: 'oppose' },
-    { id: '2', calling_id: 'c1', voter: 'TS', vote: 'Support' },     // a second row for TS: the lower one counts
-    { id: '3', calling_id: 'c1', voter: 'DW', vote: 'oppose' },
-    { id: '4', calling_id: 'c1', voter: 'AA', vote: 'support', void: 'TRUE' },   // removed
-    { id: '5', calling_id: 'c2', voter: 'AA', vote: 'support' },
-    { id: '6', calling_id: 'c1', voter: 'ZZ', vote: 'support' },     // not on the list any more: still shown
-    { id: '7', calling_id: 'c1', voter: 'QQ', vote: 'maybe' },       // not a vote
-  ];
-  assert.deepEqual([...castVotes('c1', votes).keys()], ['TS', 'DW', 'ZZ']);
-  const t = voteTally('c1', votes, ['AA', 'TS', 'DW']);
-  assert.deepEqual([t.support, t.oppose, t.waiting, t.allIn, t.count], [['TS', 'ZZ'], ['DW'], ['AA'], false, 3]);
-  const all = voteTally('c1', [...votes, { id: '8', calling_id: 'c1', voter: 'AA', vote: 'support' }], ['AA', 'TS', 'DW']);
-  assert.deepEqual([all.support, all.waiting, all.allIn], [['AA', 'TS', 'ZZ'], [], true]);
-  assert.equal(voteTally('c1', votes, []).allIn, false);   // no voter list: never "all in"
+test('who records callings in LCR: the setting, or else the Executive Secretary', () => {
+  const people = [{ initials: 'AA', role: 'Bishop' }, { initials: 'ts', role: 'First Counselor' }, { initials: 'EZ', role: 'Executive Secretary' }];
+  assert.equal(recorderFrom(people, ''), 'EZ');
+  assert.equal(recorderFrom(people, 'ts'), 'TS');                 // a saved choice wins
+  assert.equal(recorderFrom(people, 'NONE'), '');                 // "Nobody by default"
+  assert.equal(recorderFrom(people.slice(0, 2), ''), '');         // no executive secretary on the list
+  assert.equal(recorderFrom([...people, { initials: 'XS', role: 'Executive Secretary' }], ''), '');   // two: no guess
+  // the default fills the LCR step only when the calling names nobody
+  const c = { sustained_on: '2026-11-08' };
+  assert.deepEqual(callingState(c, { record: 'EZ' }).tasks.map((t) => `${t.step}:${t.by}`), ['record:EZ', 'set_apart:']);
+  assert.deepEqual(callingState({ ...c, record_by: 'ts' }, { record: 'EZ' }).tasks.map((t) => `${t.step}:${t.by}`), ['record:TS', 'set_apart:']);
 });
 
 test('pipeline groups every calling in progress into one stage', () => {
@@ -73,11 +65,10 @@ test('pipeline groups every calling in progress into one stage', () => {
     { id: '4', member_name: 'Dogwood, Dan', organization: 'Primary', sustained_on: '2020-01-05', recorded_on: '2020-01-06' },
     { id: '5', member_name: 'Elmwood, Eli', organization: 'Primary', proposed_on: '2026-11-01', void: true },
   ];
-  const p = pipeline(cs, [{ calling_id: '3', voter: 'AA', vote: 'support' }]);
-  assert.deepEqual(p.proposed.map((c) => c.id), ['2', '1']);   // organization, then name
-  assert.deepEqual(p.vote.map((c) => c.id), ['3']);
+  const p = pipeline(cs);
+  assert.deepEqual(p.proposed.map((c) => c.id), ['3', '2', '1']);   // organization, then name
   assert.deepEqual(p.set_apart.map((c) => c.id), ['4']);
-  assert.deepEqual(Object.keys(p), ['proposed', 'vote', 'approved', 'assigned', 'sustain', 'record', 'release', 'set_apart']);
+  assert.deepEqual(Object.keys(p), ['proposed', 'approved', 'assigned', 'sustain', 'record', 'release', 'set_apart']);
 });
 
 test('to-dos: open ones by due date, recently done', () => {
@@ -95,27 +86,27 @@ test('to-dos: open ones by due date, recently done', () => {
   assert.deepEqual(recentlyDone(todos, TODAY, 90).map((t) => t.id), ['t4', 't5']);
 });
 
-test('my work: votes, asks, other steps and to-dos', () => {
+test('my work: asks, other steps (with the LCR default) and to-dos', () => {
   const cs = [
     { id: 'c1', member_name: 'Arbor, Amy', organization: 'Primary', proposed_on: '2026-11-01' },
-    { id: 'c2', member_name: 'Birch, Ben', organization: 'Primary', proposed_on: '2026-11-01' },
     { id: 'c3', member_name: 'Cedar, Cora', organization: 'Primary', approved_on: '2026-11-02', extend_by: 'ts' },
     { id: 'c4', member_name: 'Dogwood, Dan', organization: 'Primary', approved_on: '2026-11-02', extend_by: 'AA' },
     { id: 'c5', member_name: 'Elmwood, Eli', organization: 'Primary', sustained_on: '2026-11-08', record_by: 'TS', set_apart_by: 'AA' },
+    { id: 'c6', member_name: 'Firwood, Fay', organization: 'Primary', sustained_on: '2026-11-08' },   // nobody named for LCR
   ];
-  const votes = [{ calling_id: 'c2', voter: 'TS', vote: 'support' }];
   const todos = [{ id: 't1', description: 'Mine', assigned_to: 'ts' }, { id: 't2', description: 'Nobody', assigned_to: '' }, { id: 't3', description: 'Theirs', assigned_to: 'AA' }];
-  const w = myWork({ callings: cs, votes, voters: ['AA', 'TS'], todos, initials: 'ts' });
-  assert.deepEqual(w.votes.map((c) => c.id), ['c1']);
+  const w = myWork({ callings: cs, todos, initials: 'ts' });
+  assert.equal(w.votes, undefined);
   assert.deepEqual(w.asks.map((t) => t.calling.id), ['c3']);
   assert.deepEqual(w.steps.map((t) => `${t.calling.id}:${t.step}`), ['c5:record']);
   assert.deepEqual(w.todos.map((t) => t.id), ['t1']);
   assert.deepEqual(w.unassignedTodos.map((t) => t.id), ['t2']);
-  // not on the voter list: no votes to cast
-  assert.deepEqual(myWork({ callings: cs, votes, voters: ['AA'], todos, initials: 'TS' }).votes, []);
+  // the person who records callings in LCR gets every LCR step that names nobody
+  const ez = myWork({ callings: cs, todos, initials: 'EZ', defaults: { record: 'EZ' } });
+  assert.deepEqual(ez.steps.map((t) => `${t.calling.id}:${t.step}`), ['c6:record']);
   // no initials: only the to-dos nobody has
-  const none = myWork({ callings: cs, votes, voters: ['AA', 'TS'], todos, initials: '' });
-  assert.deepEqual([none.votes.length, none.asks.length, none.steps.length, none.todos.length, none.unassignedTodos.length], [0, 0, 0, 0, 1]);
+  const none = myWork({ callings: cs, todos, initials: '' });
+  assert.deepEqual([none.asks.length, none.steps.length, none.todos.length, none.unassignedTodos.length], [0, 0, 0, 1]);
 });
 
 test('org chart badge for callings on their way', () => {
@@ -165,7 +156,7 @@ test('time in calling', () => {
 
 const callings = [
   { id: 'c1', member_id: 'a', member_name: 'Arbor, Amy', organization: 'Primary', calling: 'Teacher', proposed_on: '2026-11-01', approved_on: '2026-11-02', extend_by: 'kw' },
-  { id: 'c2', member_id: 'b', member_name: 'Birch, Ben', organization: 'Sunday School', calling: 'Teacher', approved_on: '2026-11-02', accepted_on: '2026-11-05', extend_by: 'DS' },
+  { id: 'c2', member_id: 'b', member_name: 'Birch, Ben', organization: 'Sunday School', calling: 'Teacher', approved_on: '2026-11-02', accepted_on: '2026-11-05', extend_by: 'EZ' },
   { id: 'c3', member_id: 'c', member_name: 'Cedar, Cora', organization: 'Relief Society', calling: 'Secretary', sustained_on: '2023-02-05', set_apart_on: '2023-02-05', recorded_on: '2023-02-06', release_informed_on: '2026-11-10', release_proposed_on: '2026-11-01' },
   { id: 'c4', member_id: 'd', member_name: 'Dogwood, Dan', organization: 'Elders Quorum', calling: 'Secretary', sustained_on: '2026-11-08', recorded_on: '2026-11-09' },
   { id: 'c5', member_id: 'e', member_name: 'Elmwood, Eli', organization: 'Primary', calling: 'Teacher', approved_on: '2026-10-01', declined_on: '2026-10-02' },

@@ -2,11 +2,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Store, registerTables } from '../js/store.js';
-import { COLUMNS, DATE_COLUMNS, VOTE_COLUMNS, VOTE_DATES, TODO_COLUMNS, TODO_DATES } from '../js/features/callings-logic.js';
+import { COLUMNS, DATE_COLUMNS, TODO_COLUMNS, TODO_DATES } from '../js/features/callings-logic.js';
 
 registerTables({
   Callings: { columns: COLUMNS, dates: DATE_COLUMNS },
-  Votes: { columns: VOTE_COLUMNS, dates: VOTE_DATES },
   Tasks: { columns: TODO_COLUMNS, dates: TODO_DATES },
 });
 
@@ -55,8 +54,7 @@ test('load widens a full tab before adding its new headers', async () => {
   const callings = api.get('Callings');
   assert.equal(callings.columnCount, 29);
   assert.deepEqual(callings.rows[0].slice(26), ['approved_on', 'approved_by', 'not_approved_on']);
-  assert.deepEqual(api.get('Bishopric').rows[0].slice(7), ['votes']);
-  assert.deepEqual(api.get('Votes').rows[0], VOTE_COLUMNS);
+  assert.equal(api.get('Bishopric').rows[0].length, 7);   // already complete: nothing added
   assert.deepEqual(api.get('Tasks').rows[0], TODO_COLUMNS);
   assert.equal(store.records('Callings')[0].sustained_on, '2025-12-09');   // existing data read as before
   // The second load finds everything in place: no tabs, columns or headers added.
