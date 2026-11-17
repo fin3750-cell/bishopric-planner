@@ -1,14 +1,14 @@
-// Callings feature: current callings and time in calling, the stages of a call (proposed, vote,
-// bishop approved, assigned, sustain, record in LCR, set apart) and releases, to-dos, Sunday business,
-// each person's tasks, and members with no calling.
+// Callings feature: current callings and time in calling, the stages of a call (proposed, bishop
+// approved, assigned to contact, sustain, record in LCR, set apart) and releases, to-dos, Sunday
+// business, each person's tasks, and members with no calling.
 
 import { formatDate, nextSunday } from '../dates.js';
 import { makeId, normName, isActive, isTrue } from '../members.js';
 import { h, add, clear, field, select, busy, toast, openDialog } from '../ui.js';
 import {
-  COLUMNS, DATE_COLUMNS, VOTE_COLUMNS, VOTE_DATES, TODO_COLUMNS, TODO_DATES, STAGES,
+  COLUMNS, DATE_COLUMNS, TODO_COLUMNS, TODO_DATES, STAGES,
   callingState, isCurrent, tenureMonths, formatTenure, myWork, sundayBusiness, currentCallings, callingsFor,
-  membersWithoutCalling, bishopricFromCallings, votersFrom, castVotes, voteTally, pipeline, openTodos, recentlyDone,
+  membersWithoutCalling, bishopricFromCallings, recorderFrom, pipeline, openTodos, recentlyDone,
 } from './callings-logic.js';
 import { ORG_NAMES, organizationFor, sustainedIn, handbookFor, setApartByStake } from './callings-orgs.js';
 import { renderOrgChart } from './callings-orgchart.js';
@@ -16,23 +16,23 @@ import { renderLcrImport } from './callings-lcr.js';
 
 const tables = {
   Callings: { columns: COLUMNS, dates: DATE_COLUMNS },
-  Votes: { columns: VOTE_COLUMNS, dates: VOTE_DATES },
   Tasks: { columns: TODO_COLUMNS, dates: TODO_DATES },
 };
 
 function orgRank(org) { const i = ORG_NAMES.indexOf(org); return i < 0 ? ORG_NAMES.length - 2.5 : i; }
 
 const PHASE_TEXT = {
-  proposed: 'Proposed, waiting for votes and the bishop', approved: 'Approved, to be asked', to_sustain: 'Accepted, to sustain',
+  proposed: 'Proposed, waiting for the bishop', approved: 'Approved, to be asked', to_sustain: 'Accepted, to sustain',
   serving: 'Serving', releasing: 'Release in progress', ended: 'Released', not_approved: 'Not approved', declined: 'Declined', void: 'Removed',
 };
 
 const view = { search: '', sort: 'org', minAge: '18', setApartOpen: false, doneOpen: false };
 
 function callings(ctx) { return ctx.store.records('Callings'); }
-function votes(ctx) { return ctx.store.records('Votes'); }
 function todos(ctx) { return ctx.store.records('Tasks'); }
-function voters(ctx) { return votersFrom(ctx.bishopric()); }
+// Who records callings in LCR when a calling names nobody (Settings), and the defaults for steps.
+function recorder(ctx) { return recorderFrom(ctx.bishopric(), ctx.shared.get('record_by')); }
+function stepDefaults(ctx) { return { record: recorder(ctx) }; }
 function myInitials(ctx) { return String(ctx.settings.initials || '').trim().toUpperCase(); }
 
 function uniq(values) { return [...new Set(values.map((v) => String(v || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
@@ -75,55 +75,6 @@ function titleOf(c) { return `${c.calling || 'Calling'} — ${c.member_name || '
 
 function nameOrInitials(ctx, initials) { return personName(ctx, initials) || String(initials || '').toUpperCase(); }
 
-// "Support: AA, TS · Don't support: DW · Waiting for: KW"
-function tallyText(t) {
-  return [t.support.length ? `Support: ${t.support.join(', ')}` : '', t.oppose.length ? `Don't support: ${t.oppose.join(', ')}` : '',
-    t.waiting.length ? `Waiting for: ${t.waiting.join(', ')}` : (t.allIn ? 'All votes are in: bishop to decide' : '')].filter(Boolean).join(' · ') || 'No votes yet';
-}
-
-// Records this person's vote. A person has one row per calling: a changed vote updates it.
-async function castVote(ctx, c, vote) {
-  const me = myInitials(ctx);
-  if (!me) throw new Error('Add your initials on the Settings screen first.');
-  const mine = votes(ctx).filter((v) => String(v.calling_id) === String(c.id) && String(v.voter || '').trim().toUpperCase() === me && !isTrue(v.void));
-  const fields = { vote, voted_on: ctx.today(), entered_at: ctx.stamp() };
-  if (mine.length) await ctx.store.update('Votes', [{ id: mine[mine.length - 1].id, fields }]);
-  else await ctx.store.add('Votes', [{ id: makeId('v'), calling_id: c.id, voter: me, ...fields }]);
-}
-
-async function clearVote(ctx, c) {
-  const me = myInitials(ctx);
-  const mine = votes(ctx).filter((v) => String(v.calling_id) === String(c.id) && String(v.voter || '').trim().toUpperCase() === me && !isTrue(v.void));
-  if (mine.length) await ctx.store.update('Votes', mine.map((v) => ({ id: v.id, fields: { void: true } })));
-}
-
-// Why this person cannot vote, or '' if they can.
-function cannotVote(ctx) {
-  const me = myInitials(ctx);
-  const list = voters(ctx);
-  if (!me) return 'Add your initials on the Settings screen to vote.';
-  if (list.length && !list.includes(me)) return `${me} is not on the voting list (Settings, Bishopric list).`;
-  return '';
-}
-
-// Your vote: Support / Don't support (the current choice is filled in).
-function voteButtons(ctx, c, after) {
-  const why = cannotVote(ctx);
-  if (why) return h('span', { class: 'hint', text: why });
-  const current = castVotes(c.id, votes(ctx)).get(myInitials(ctx));
-  const cur = current ? String(current.vote).trim().toLowerCase() : '';
-  const make = (value, label) => {
-    const b = h('button', { class: `small${cur === value ? '' : ' secondary'}`, text: cur === value ? `✓ ${label}` : label, 'aria-pressed': cur === value ? 'true' : 'false' });
-    b.addEventListener('click', () => busy(b, async () => {
-      if (cur === value) await clearVote(ctx, c); else await castVote(ctx, c, value);
-      toast(cur === value ? 'Vote cleared' : `Vote saved: ${label}`);
-      after();
-    }).catch(() => {}));
-    return b;
-  };
-  return h('span', { class: 'step-controls' }, make('support', 'Support'), make('oppose', "Don't support"));
-}
-
 // ---------- calling page ----------
 
 export function openCalling(id, ctx) {
@@ -146,7 +97,7 @@ export function openCalling(id, ctx) {
     };
     // opts: by (column with initials), byPrefix (text before the name), defaultDate, clear (more columns Undo empties)
     const stepRow = (label, dateField, opts = {}) => {
-      const { by: byField = null, byPrefix = '', defaultDate = today, clear: alsoClear = [] } = opts;
+      const { by: byField = null, byPrefix = '', defaultDate = today, clear: alsoClear = [], defaultBy = '' } = opts;
       if (!c[dateField] && (IMPLIED[dateField] || []).some((f) => c[f])) {
         return h('li', { class: 'row step done' }, h('span', {}, h('strong', { text: `✓ ${label}` }), ' (date not recorded)'));
       }
@@ -169,7 +120,7 @@ export function openCalling(id, ctx) {
       }).catch(() => {}));
       let who = null;
       if (byField) {
-        who = whoControl(ctx, c[byField], `${label}: assigned to`);
+        who = whoControl(ctx, c[byField] || defaultBy, `${label}: assigned to`);
         who.addEventListener('change', () => {
           save(ctx, c.id, { [byField]: who.value.trim().toUpperCase() })
             .then(() => { toast(who.value.trim() ? `Assigned to ${who.value.trim().toUpperCase()}` : 'Unassigned'); ctx.refresh(); })
@@ -183,28 +134,20 @@ export function openCalling(id, ctx) {
 
     rows.push(stepRow('Proposed', 'proposed_on'));
 
-    // Votes: shown while the bishop has not decided, and afterwards if any were recorded.
-    const tally = voteTally(c.id, votes(ctx), voters(ctx));
+    // The bishop's decision.
     if (phase === 'proposed') {
-      rows.push(h('li', { class: 'row step' }, h('span', { class: 'step-label', text: 'Votes' }), h('span', { class: 'meta', text: tallyText(tally) })));
-      rows.push(custom('Your vote', voteButtons(ctx, c, reopen)));
-      if (!voters(ctx).length) rows.push(h('li', { class: 'row' }, h('span', { class: 'hint', text: 'Add the bishopric list on the Settings screen so the app knows who votes.' })));
       const date = h('input', { type: 'date', value: today, 'aria-label': 'Bishop approval date' });
       const yes = h('button', { class: 'small', text: 'Approved' });
       const no = h('button', { class: 'small warn', text: 'Not approved' });
-      yes.addEventListener('click', () => {
-        if (!tally.allIn && !window.confirm(tally.waiting.length
-          ? `Still waiting for ${tally.waiting.join(', ')} to vote. Record the bishop's approval anyway?`
-          : 'There is no voting list yet. Record the bishop\'s approval anyway?')) return;
-        busy(yes, async () => { await save(ctx, c.id, { approved_on: date.value || today, approved_by: myInitials(ctx) }); reopen(); }).catch(() => {});
-      });
+      yes.addEventListener('click', () => busy(yes, async () => {
+        await save(ctx, c.id, { approved_on: date.value || today, approved_by: myInitials(ctx) }); reopen();
+      }).catch(() => {}));
       no.addEventListener('click', () => {
         if (!window.confirm('Record that the bishop did not approve this calling? It closes and stays in the Sheet.')) return;
         busy(no, async () => { await save(ctx, c.id, { not_approved_on: date.value || today, approved_by: myInitials(ctx) }); reopen(); }).catch(() => {});
       });
       rows.push(custom('Bishop approval', date, yes, no));
     } else {
-      if (tally.count) rows.push(h('li', { class: 'row step done' }, h('span', {}, h('strong', { text: '✓ Votes' }), ` ${tallyText({ ...tally, waiting: [], allIn: false })}`)));
       if (phase === 'not_approved') rows.push(stepRow('Not approved by the bishop', 'not_approved_on', { by: 'approved_by', byPrefix: 'recorded by ', clear: ['approved_by'] }));
       else rows.push(stepRow('Bishop approved', 'approved_on', { by: 'approved_by', byPrefix: 'recorded by ', clear: ['approved_by'] }));
     }
@@ -230,7 +173,7 @@ export function openCalling(id, ctx) {
     } else if (phase !== 'proposed' && phase !== 'not_approved') {
       rows.push(stepRow('Accepted', 'accepted_on', { by: 'extend_by', byPrefix: 'asked by ' }));
       rows.push(stepRow('Sustained', 'sustained_on', { defaultDate: sundayDefault(ctx) }));
-      rows.push(stepRow('Recorded in LCR', 'recorded_on', { by: 'record_by' }));
+      rows.push(stepRow('Recorded in LCR', 'recorded_on', { by: 'record_by', defaultBy: recorder(ctx) }));
       rows.push(stepRow('Set apart', 'set_apart_on', { by: 'set_apart_by' }));
     }
     const releaseStarted = c.release_proposed_on || c.release_informed_on || c.released_on || c.release_recorded_on;
@@ -314,7 +257,7 @@ export function proposeCalling(ctx, memberId) {
     return [
       field('Member', who), field('Organization', org), field('Calling', calling),
       field('Note', notes),
-      h('p', { class: 'hint', text: 'It starts under Proposed. After the votes and the bishop\'s approval, choose who will ask.' }),
+      h('p', { class: 'hint', text: 'It starts under Proposed. After the bishop\'s approval, choose who will ask.' }),
       create,
       datalist('member-list', members.map((m) => m.name).sort((a, b) => a.localeCompare(b))),
       datalist('org-list', [...ORG_NAMES, ...uniq(all.map((c) => c.organization)).filter((o) => !ORG_NAMES.includes(o))]),
@@ -328,8 +271,8 @@ export function proposeCalling(ctx, memberId) {
 
 function proposeButton(ctx) { return h('button', { text: 'Propose a calling', onclick: () => proposeCalling(ctx) }); }
 
-function taskBadges(c) {
-  return callingState(c).tasks.map((t) => h('span', { class: `badge ${t.step.startsWith('release') ? 'declined' : 'soon'}`, text: `${t.label}${t.by ? ` · ${t.by}` : ''}` }));
+function taskBadges(c, ctx) {
+  return callingState(c, stepDefaults(ctx)).tasks.map((t) => h('span', { class: `badge ${t.step.startsWith('release') ? 'declined' : 'soon'}`, text: `${t.label}${t.by ? ` · ${t.by}` : ''}` }));
 }
 
 function renderCurrent(root, ctx) {
@@ -361,7 +304,7 @@ function renderCurrent(root, ctx) {
     }
   };
   const card = (c) => h('li', {}, h('button', { class: 'card', onclick: () => openCalling(c.id, ctx) },
-    h('span', { class: 'card-top' }, h('span', { class: 'name', text: c.calling }), taskBadges(c)),
+    h('span', { class: 'card-top' }, h('span', { class: 'name', text: c.calling }), taskBadges(c, ctx)),
     h('span', { class: 'meta', text: [c.member_name, view.sort === 'tenure' ? c.organization : '', formatTenure(tenureMonths(c, today))].filter(Boolean).join(' · ') })));
   const search = h('input', { type: 'search', placeholder: 'Search name or calling', value: view.search, 'aria-label': 'Search' });
   search.addEventListener('input', () => { view.search = search.value; draw(); });
@@ -394,17 +337,10 @@ function callingCard(ctx, c, { meta = '', badges = [], below = null } = {}) {
 }
 
 function stageItem(ctx, stage, c) {
-  const me = myInitials(ctx);
-  const list = voters(ctx);
   const badge = (text, cls = 'new') => h('span', { class: `badge ${cls}`, text });
-  const yourVote = () => (me && list.includes(me) && !castVotes(c.id, votes(ctx)).has(me) ? badge('Your vote needed', 'soon') : null);
   switch (stage) {
     case 'proposed':
-      return callingCard(ctx, c, { meta: c.proposed_on ? `Proposed ${formatDate(c.proposed_on)}` : '', badges: [yourVote()] });
-    case 'vote': {
-      const t = voteTally(c.id, votes(ctx), list);
-      return callingCard(ctx, c, { meta: tallyText(t), badges: [yourVote(), t.allIn ? badge('Votes in', 'soon') : null, t.oppose.length ? badge(`${t.oppose.length} don't support`, 'declined') : null] });
-    }
+      return callingCard(ctx, c, { meta: c.proposed_on ? `Proposed ${formatDate(c.proposed_on)}` : '' });
     case 'approved': {
       const who = whoControl(ctx, '', `Who will ask: ${c.member_name}`);
       who.addEventListener('change', () => {
@@ -422,7 +358,7 @@ function stageItem(ctx, stage, c) {
     case 'record':
       return callingCard(ctx, c, {
         meta: c.sustained_on ? `Sustained ${formatDate(c.sustained_on)}` : '',
-        badges: [c.record_by ? badge(String(c.record_by).toUpperCase()) : null, !c.set_apart_on ? badge('not set apart yet', 'muted') : null],
+        badges: [(c.record_by || recorder(ctx)) ? badge(String(c.record_by || recorder(ctx)).toUpperCase()) : null, !c.set_apart_on ? badge('not set apart yet', 'muted') : null],
       });
     case 'release':
       return callingCard(ctx, c, { badges: callingState(c).tasks.map((t) => badge(`${t.label}${t.by ? ` · ${t.by}` : ''}`, 'declined')) });
@@ -438,7 +374,7 @@ function stageItem(ctx, stage, c) {
 }
 
 function renderPipeline(root, ctx) {
-  const groups = pipeline(callings(ctx), votes(ctx));
+  const groups = pipeline(callings(ctx));
   add(root, h('div', { class: 'toolbar' }, proposeButton(ctx)),
     h('p', { class: 'hint', text: 'Each call moves down these sections in order. Tap a name to open it and record the next step.' }));
   for (const stage of STAGES) {
@@ -522,7 +458,7 @@ function renderTasks(root, ctx) {
   if (!me) {
     root.append(h('div', { class: 'panel' }, h('p', { text: 'Add your initials on the Settings screen to see what is assigned to you.' }), h('a', { class: 'button', href: '#settings', text: 'Open Settings' })));
   }
-  const w = myWork({ callings: callings(ctx), votes: votes(ctx), voters: voters(ctx), todos: todos(ctx), initials: me });
+  const w = myWork({ callings: callings(ctx), todos: todos(ctx), initials: me, defaults: stepDefaults(ctx) });
   const section = (title, items, emptyText, wrap = 'cards') => [
     h('h3', { class: 'stage-head', text: `${title} (${items.length})` }),
     items.length ? h('ul', { class: wrap }, items) : h('p', { class: 'empty', text: emptyText }),
@@ -545,9 +481,7 @@ function renderTasks(root, ctx) {
       t.step === 'set_apart' && setApartByStake(t.calling.calling, t.calling.organization) ? h('span', { class: 'badge muted', text: 'stake sets apart' }) : null],
   });
   add(root,
-    h('p', { class: 'hint', text: `${me ? `For ${me}${personName(ctx, me) ? ` (${personName(ctx, me)})` : ''}. ` : ''}Your votes, the calls you were assigned to extend, your to-dos and other steps assigned to you. Add a to-do under In progress, Assigned.` }),
-    me ? section('Votes waiting for you', w.votes.map((c) => callingCard(ctx, c, { meta: tallyText(voteTally(c.id, votes(ctx), voters(ctx))) })),
-      voters(ctx).includes(me) ? 'No votes waiting for you.' : cannotVote(ctx) || 'No votes waiting for you.') : null,
+    h('p', { class: 'hint', text: `${me ? `For ${me}${personName(ctx, me) ? ` (${personName(ctx, me)})` : ''}. ` : ''}The calls you were assigned to extend, your to-dos and other steps assigned to you (recording callings in LCR, setting apart, releases). Add a to-do under In progress, Assigned to Contact.` }),
     me ? section('Calls to extend', w.asks.map(askItem), 'No calls assigned to you.') : null,
     me ? section('Your to-dos', w.todos.map((t) => todoRow(ctx, t)), 'No to-dos assigned to you.', 'rows') : null,
     me ? section('Other steps assigned to you', w.steps.map(stepItem), 'Nothing else assigned to you.') : null,
@@ -635,6 +569,30 @@ function memberSections(m, ctx, close) {
     h('button', { class: 'secondary', text: 'Propose a calling', onclick: () => { close(); proposeCalling(ctx, m.id); } }))];
 }
 
+// Settings: who records callings in LCR. Saved in the Sheet (Settings tab), the same for everyone.
+function settingsSections(ctx) {
+  const people = ctx.bishopric();
+  const saved = ctx.shared.get('record_by');
+  const current = recorder(ctx);
+  const opts = [...people.map((p) => ({ value: p.initials, label: `${p.initials} — ${p.name}${p.role ? ` (${p.role})` : ''}` })),
+    { value: 'NONE', label: 'Nobody by default' }];
+  const value = saved.toUpperCase() === 'NONE' ? 'NONE' : current;
+  if (!value) opts.unshift({ value: '', label: 'Choose…' });
+  else if (!opts.some((o) => o.value === value)) opts.unshift({ value, label: value });   // someone no longer on the list
+  const sel = select(opts, value, { 'aria-label': 'Records callings in LCR' });
+  sel.addEventListener('change', () => {
+    if (!sel.value) return;
+    ctx.shared.set('record_by', sel.value)
+      .then(() => { toast(sel.value === 'NONE' ? 'Recording in LCR is not assigned by default' : `${sel.value} records callings in LCR`); ctx.refresh(); })
+      .catch((e) => ctx.fail(e));
+  });
+  return [h('section', { class: 'sub' },
+    h('h3', { text: 'Records callings in LCR' }),
+    field('Records callings in LCR', sel, saved
+      ? 'Every calling waiting to be recorded in LCR is assigned to this person (on their My tasks) unless its own page names someone else.'
+      : 'Not chosen yet, so the Executive Secretary on the Bishopric list is used. Every calling waiting to be recorded in LCR is assigned to this person unless its own page names someone else.'))];
+}
+
 export const callingsFeature = {
   id: 'callings',
   group: 'Callings',
@@ -651,4 +609,5 @@ export const callingsFeature = {
   memberSections,
   // Settings > Bishopric: suggest the ward's bishopric and executive secretary from current callings.
   suggestBishopric: (ctx) => bishopricFromCallings(callings(ctx)),
+  settingsSections,
 };
