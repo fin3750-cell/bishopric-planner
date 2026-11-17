@@ -251,6 +251,11 @@ details.problems summary { cursor: pointer; color: var(--error); }
 .coming-up h3 { margin: 0 0 4px; font-size: 1.02rem; }
 .coming-up textarea { font: inherit; font-size: 0.92rem; line-height: 1.4; white-space: pre-wrap; }
 
+.update-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
+  padding: 8px 16px; background: var(--new-bg); color: var(--new-text); font-weight: 600;
+}
+
 /* "Shouldn't ask" / "Won't accept" on Who to ask, and people found by search who are not on the list */
 .card.is-muted { opacity: 0.62; border-left-color: var(--line); }
 .badge.cat-wont_accept { background: var(--line); color: var(--text); }

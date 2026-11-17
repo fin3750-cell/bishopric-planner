@@ -1,6 +1,9 @@
 // Network first, cache as the offline fallback, for the app's own files only.
 // Google sign-in and Sheets requests are never cached, so member data is not stored by this worker.
-const CACHE = 'planner-v0.9.1';
+// Every request asks the server whether the file changed (cache: 'no-cache'). GitHub Pages lets
+// browsers reuse files for 10 minutes; without this a new version could take that long to appear.
+// When nothing changed the answer is a tiny "not modified".
+const CACHE = 'planner-v0.9.2';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './config.js', './manifest.webmanifest',
   './js/auth.js', './js/dates.js', './js/members.js', './js/settings.js', './js/sheets.js', './js/store.js', './js/ui.js',
@@ -13,7 +16,7 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((url) => new Request(url, { cache: 'no-cache' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -26,7 +29,7 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   event.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' })
       .then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
         return res;

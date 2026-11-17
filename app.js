@@ -205,8 +205,25 @@ window.addEventListener('hashchange', render);
 window.addEventListener('unhandledrejection', (ev) => handleError(ev.reason));
 setInterval(renderHeader, 60000);
 
+// Updates. Opening the app always gets the newest files (see sw.js). If a new version is published
+// while the app is open (for example a phone app brought back from the background), a bar offers
+// a reload; it does not reload by itself, so nothing being typed is lost.
+function showUpdateBar() {
+  if (document.getElementById('update-bar')) return;
+  const bar = h('div', { id: 'update-bar', class: 'update-bar', role: 'status' },
+    h('span', { text: 'A new version of the app is ready.' }),
+    h('button', { class: 'small', text: 'Reload', onclick: () => location.reload() }));
+  document.body.insertBefore(bar, document.body.firstChild);
+}
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  const hadController = Boolean(navigator.serviceWorker.controller);   // false on the very first visit
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) showUpdateBar(); });
+  navigator.serviceWorker.register('./sw.js').then((reg) => {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
 }
 
 startAuth();

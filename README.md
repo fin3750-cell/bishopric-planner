@@ -142,7 +142,11 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
    screen at the first sign-in. Choose **Continue**.
 3. **GitHub Pages.** In the repository's settings, open **Pages**, set the source to **Deploy from a
    branch**, choose branch `main` and folder `/ (root)`, and save. The app will be at
-   `https://fin3750-cell.github.io/bishopric-planner/`. A new version can take up to 10 minutes to appear.
+   `https://fin3750-cell.github.io/bishopric-planner/`. GitHub publishes a merged change in about
+   a minute. The app asks GitHub whether its files changed each time it opens, so the next time
+   anyone opens it they get the new version. If the app is already open when a version is
+   published, a bar says "A new version of the app is ready" with a **Reload** button. The bottom
+   of Settings shows the version.
 4. **On each phone.** Open the app's address and choose **Sign in with Google**. The Sheet and the
    client ID are built into the app (`config.js`), so there is nothing to type.
    - **The first time** someone signs in, the app asks **"Which one are you?"** and saves their Google
@@ -254,6 +258,10 @@ modules.
 - **Browser test:** `node tests/e2e/smoke.mjs`. It needs Playwright with Chromium. It signs in to a
   fake Google and a fake in-memory Sheet, then records a talk, a decline and a category, imports a
   list, and checks the layout at 375 px wide.
+- **Update test:** `node tests/e2e/update.mjs`. It serves the app the way GitHub Pages does
+  (files may be reused for 10 minutes), with the service worker on, and checks that a newly
+  published version shows the next time the app opens, that the "new version" bar appears when
+  one is published while the app is open, and that the app still opens offline.
 - **Local preview:** `python3 -m http.server 8000`, then open <http://localhost:8000>. Google sign-in
   only works locally if `http://localhost:8000` is added as an authorized origin.
 
