@@ -2,8 +2,8 @@
 // calendar, scheduled speakers and to-do due dates, plus month notes (high council speaker, the
 // ward's stake assignments).
 
-import { addDays } from '../dates.js';
-import { isTrue } from '../members.js';
+import { addDays, addMonths } from '../dates.js';
+import { isTrue, displayName } from '../members.js';
 import { timeOf, hcVisits } from './stake-parse.js';
 
 export const EVENT_COLUMNS = ['id', 'date', 'time', 'title', 'notes', 'entered_by', 'entered_at', 'void'];
@@ -95,4 +95,48 @@ export function formatTime(t) {
   if (!m) return '';
   const h = Number(m[1]);
   return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+// ---------- "Coming up": a plain-text list to paste into the bulletin or a correlation agenda ----------
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MON = MONTH_NAMES.map((m) => m.slice(0, 3));
+const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// range: 'month' = today to the same date next month; 'weeks2' = today and the next 14 days;
+// 'nextMonth' = the whole next calendar month.
+export function comingUpRange(today, range = 'month') {
+  if (range === 'weeks2') return { from: today, to: addDays(today, 14) };
+  if (range === 'nextMonth') {
+    const first = `${addMonths(`${today.slice(0, 7)}-01`, 1).slice(0, 7)}-01`;
+    return { from: first, to: addDays(addMonths(first, 1), -1) };
+  }
+  return { from: today, to: addMonths(today, 1) };
+}
+
+function shortDay(iso) {
+  const [, m, d] = iso.split('-').map(Number);
+  return `${DAY[new Date(`${iso}T00:00:00Z`).getUTCDay()]}, ${MON[m - 1]} ${d}`;
+}
+
+// include: { events, fast, notes, speakers, todos } (true = listed). Other wards' events never are.
+// One line per item, in date order; month notes (high council speaker, assignments) first.
+export function comingUpText({ items, notes = [], include }) {
+  const lines = [];
+  if (include.notes) for (const n of notes) lines.push(`${MONTH_NAMES[n.month - 1]}: ${n.text}`);
+  for (const it of items) {
+    const group = { event: 'events', ward: 'events', stake: 'events', fast: 'fast', speakers: 'speakers', todo: 'todos' }[it.kind];
+    if (!group || !include[group]) continue;
+    const when = `${shortDay(it.date)}${it.time ? `, ${formatTime(it.time)}` : ''}`;
+    let what;
+    if (it.kind === 'speakers') what = `Speakers: ${it.people.map((p) => displayName(p.name)).join(', ')}`;
+    else if (it.kind === 'todo') what = `${it.title}${it.who ? ` (${it.who})` : ''}`;
+    else {
+      // "MS6 - Ward Conference" reads "Ward Conference" in the ward's own bulletin.
+      const title = it.kind === 'ward' ? it.title.replace(/^[A-Z]{2,3}\s?\d?\s*-\s+/, '') : it.title;
+      what = `${title}${it.notes && it.kind !== 'fast' ? ` (${it.notes})` : ''}`;
+    }
+    lines.push(`${when}: ${what}`);
+  }
+  return lines.join('\n');
 }

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readStakeSheet, hcVisits, wardKey, cellIsWard, timeOf, parseChrono } from '../js/features/stake-parse.js';
-import { fastSundays, calendarItems, monthNotes, formatTime } from '../js/features/calendar-logic.js';
+import { fastSundays, calendarItems, monthNotes, formatTime, comingUpRange, comingUpText } from '../js/features/calendar-logic.js';
 
 import { STAKE_TABS, T } from './fixtures/stake-tabs.mjs';
 
@@ -96,4 +96,36 @@ test('calendar items: hand events, stake, speakers, to-dos, fast Sundays; month 
     '2027-3 turn Hospital blessings (Ivo Marchbank)',
   ]);
   assert.deepEqual(calendarItems({ from: '2027-01-01', to: '2027-01-31' }).map((i) => i.kind), ['fast']);   // works with no stake sheet
+});
+
+test('coming up: date ranges and the copy text', () => {
+  assert.deepEqual(comingUpRange('2026-11-16'), { from: '2026-11-16', to: '2026-12-16' });
+  assert.deepEqual(comingUpRange('2026-11-16', 'weeks2'), { from: '2026-11-16', to: '2026-11-30' });
+  assert.deepEqual(comingUpRange('2026-11-16', 'nextMonth'), { from: '2026-12-01', to: '2026-12-31' });
+  assert.deepEqual(comingUpRange('2026-12-31', 'nextMonth'), { from: '2027-01-01', to: '2027-01-31' });
+  assert.deepEqual(comingUpRange('2027-01-31'), { from: '2027-01-31', to: '2027-02-28' });   // no Feb 31: the last day of February
+
+  const stake = readStakeSheet(STAKE_TABS, ['EX6']);
+  const { from, to } = { from: '2027-01-01', to: '2027-02-28' };
+  const items = calendarItems({
+    from, to, stake,
+    events: [{ id: 'e1', date: '2027-01-17', time: T(18, 30), title: 'Ward dinner', notes: 'Bring a side dish' }],
+    talks: [{ date: '2027-01-10', member_id: 'm1', member_name: 'Arbor, Amy Lynn' }, { date: '2027-01-10', name_as_shown: 'Visiting Speaker' }],
+    todos: [{ description: 'Order programs', assigned_to: 'ts', due_on: '2027-01-15' }],
+  });
+  const notes = monthNotes({ from, to, stake });
+  const base = { events: true, fast: true, notes: true, speakers: false, todos: false };
+  assert.equal(comingUpText({ items, notes, include: base }), [
+    'February: High council speaker: Bram Thistlewood. Topic: Stake Theme',
+    'Sat, Jan 2, 10:00 AM: Stake Baptisms',
+    'Sun, Jan 3: Fast Sunday',
+    'Sun, Jan 17, 6:30 PM: Ward dinner (Bring a side dish)',
+    'Sun, Jan 17, 7:00 PM: Ward Conference (Our ward)',     // the ward's own code is dropped
+    'Wed, Jan 20, 6:00 PM: YSA - Dance',
+    'Sun, Feb 7: Fast Sunday',
+  ].join('\n'));
+  const all = comingUpText({ items, notes: [], include: { ...base, notes: false, speakers: true, todos: true } }).split('\n');
+  assert.ok(all.includes('Sun, Jan 10: Speakers: Amy Arbor, Visiting Speaker'));   // "Last, First" written as "First Last"
+  assert.ok(all.includes('Fri, Jan 15: Order programs (TS)'));
+  assert.equal(comingUpText({ items, notes, include: { events: false, fast: false, notes: false, speakers: false, todos: false } }), '');
 });

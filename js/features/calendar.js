@@ -8,15 +8,15 @@ import { formatDate } from '../dates.js';
 import { makeId } from '../members.js';
 import { SheetsApi, quoteTab, spreadsheetIdFrom } from '../sheets.js';
 import { currentToken } from '../auth.js';
-import { h, add, clear, field, busy, toast, openDialog } from '../ui.js';
-import { EVENT_COLUMNS, calendarItems, monthNotes, formatTime } from './calendar-logic.js';
+import { h, add, field, select, busy, toast, openDialog } from '../ui.js';
+import { EVENT_COLUMNS, calendarItems, monthNotes, formatTime, comingUpRange, comingUpText } from './calendar-logic.js';
 import { readStakeSheet, hcVisits, wardKey } from './stake-parse.js';
 
 const tables = { Events: { columns: EVENT_COLUMNS, dates: ['date'] } };
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const view = { months: 6, otherWards: false };
+const view = { months: 6, otherWards: false, range: 'month', include: { events: true, fast: true, notes: true, speakers: false, todos: false } };
 
 // ---------- the stake Sheet, read once per session (or on Reload) ----------
 
@@ -107,7 +107,7 @@ function itemRow(ctx, it) {
 }
 
 function addEvent(ctx) {
-  openDialog('Add an event', (close) => {
+  openDialog('Add a calendar item', (close) => {
     const date = h('input', { type: 'date', value: ctx.today(), 'aria-label': 'Event date' });
     const time = h('input', { type: 'time', 'aria-label': 'Event time' });
     const title = h('input', { type: 'text', placeholder: 'e.g. Ward Christmas party', 'aria-label': 'Event title' });
@@ -121,6 +121,42 @@ function addEvent(ctx) {
     }).catch(() => {}));
     return [field('Date', date), field('Time (optional)', time), field('What', title), field('Notes', notes), save];
   });
+}
+
+// "Coming up": the next weeks as plain text to copy into the bulletin or a correlation agenda.
+// Other wards' stake events are never included.
+function comingUp(ctx, data) {
+  const { from, to } = comingUpRange(ctx.today(), view.range);
+  const items = calendarItems({
+    from, to, stake: data, otherWards: false, events: ctx.store.records('Events'),
+    talks: ctx.store.records('Talks'), todos: ctx.store.records('Tasks'),
+  });
+  const text = comingUpText({ items, notes: monthNotes({ from, to, stake: data }), include: view.include });
+  const range = select([{ value: 'month', label: 'Next month' }, { value: 'weeks2', label: 'Next 2 weeks' }, { value: 'nextMonth', label: 'Next calendar month' }],
+    view.range, { 'aria-label': 'Coming up dates' });
+  range.addEventListener('change', () => { view.range = range.value; ctx.refresh(); });
+  const boxes = [['events', 'Events'], ['fast', 'Fast Sundays'], ['notes', 'High council and assignments'], ['speakers', 'Speakers'], ['todos', 'To-dos']]
+    .map(([k, label]) => {
+      const b = h('input', { type: 'checkbox', checked: view.include[k], 'aria-label': `Include ${label}` });
+      b.addEventListener('change', () => { view.include[k] = b.checked; ctx.refresh(); });
+      return h('label', { class: 'check' }, b, label);
+    });
+  const lines = text ? text.split('\n').length : 0;
+  const area = h('textarea', { readonly: true, rows: Math.min(14, Math.max(3, lines)), 'aria-label': 'Coming up text' });
+  area.value = text || 'Nothing on the calendar for these dates.';
+  const copy = h('button', { text: 'Copy', disabled: !text });
+  copy.addEventListener('click', () => {
+    const done = () => toast(`Copied ${lines} ${lines === 1 ? 'line' : 'lines'}`);
+    const manual = () => { area.focus(); area.select(); toast('Select the text and copy it from the box.', 'error'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, manual);
+    else manual();
+  });
+  return h('section', { class: 'panel coming-up' },
+    h('h3', { text: `Coming up: ${formatDate(from)} to ${formatDate(to)}` }),
+    h('div', { class: 'toolbar' }, range, copy),
+    h('div', { class: 'checks' }, boxes),
+    area,
+    h('p', { class: 'hint', text: 'One line per item, ready to paste into the bulletin or a correlation agenda. Other wards\' events are never included.' }));
 }
 
 function renderCalendar(root, ctx) {
@@ -138,10 +174,12 @@ function renderCalendar(root, ctx) {
   const other = h('input', { type: 'checkbox', checked: view.otherWards, 'aria-label': 'Show other wards\' stake events' });
   other.addEventListener('change', () => { view.otherWards = other.checked; ctx.refresh(); });
   add(root,
-    h('div', { class: 'toolbar' }, h('button', { text: 'Add event', onclick: () => addEvent(ctx) }),
-      h('label', { class: 'check' }, other, 'Other wards\' stake events')),
-    h('p', { class: 'hint', text: 'Your events, the stake calendar, scheduled speakers, to-do due dates and fast Sundays, from the start of this month. Stake events come from the stake\'s own Sheet each time the app opens.' }),
-    stakeStatus(ctx));
+    h('div', { class: 'toolbar' }, h('button', { text: 'Add item', onclick: () => addEvent(ctx) })),
+    stakeStatus(ctx),
+    comingUp(ctx, data),
+    h('h3', { class: 'stage-head', text: 'Calendar' }),
+    h('div', { class: 'toolbar' }, h('label', { class: 'check' }, other, 'Other wards\' stake events')),
+    h('p', { class: 'hint', text: 'Your items, the stake calendar, scheduled speakers, to-do due dates and fast Sundays, from the start of this month. Stake events come from the stake\'s own Sheet each time the app opens.' }));
   for (let i = 0; i < view.months; i++) {
     const y = fy + Math.floor((fm - 1 + i) / 12);
     const m = ((fm - 1 + i) % 12) + 1;

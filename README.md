@@ -71,8 +71,14 @@ sacrament meeting → recorded in LCR. Asking, setting apart, recording in LCR a
 about a release can each be assigned to someone's initials.
 
 **Calendar**
+- **Coming up** (top of the Calendar): the next month as plain text, one line per item, with a
+  **Copy** button for the bulletin or a correlation agenda. Choose next month (today to the same
+  date next month), the next 2 weeks or the next calendar month, and what to include: events,
+  fast Sundays, high council and assignments (on by default), speakers and to-dos (off by
+  default). Other wards' events are never included, and your ward's code is left off its own
+  events ("Ward Conference", not "MS6 - Ward Conference").
 - **Calendar:** one list by month, from the start of this month, six months at a time:
-  - events you add by hand (**Add event**, saved in the Sheet's Events tab);
+  - items you add by hand (**Add item**, saved in the Sheet's Events tab);
   - the stake calendar, read from the stake's own Sheet. Stake-wide events and your ward's show;
     other wards' are hidden unless you check **Other wards' stake events**;
   - scheduled speakers (from talks recorded with a future date), open to-dos on their due date;

@@ -60,6 +60,7 @@ const browser = await chromium.launch();
 // DARK=1 runs the same checks with the phone in dark mode.
 const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, serviceWorkers: 'block', colorScheme: process.env.DARK ? 'dark' : 'light' });
 const page = await context.newPage();
+await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
@@ -655,7 +656,7 @@ assert.ok(!cal.includes('RR - Ward Conference'), 'another ward\'s event is hidde
 await page.getByLabel('Other wards\' stake events').check();
 assert.ok((await page.textContent('#view')).includes('RR - Ward Conference Training Meeting'));
 await page.getByLabel('Other wards\' stake events').uncheck();
-await page.getByRole('button', { name: 'Add event' }).click();
+await page.getByRole('button', { name: 'Add item' }).click();
 await page.getByLabel('Event date').fill('2026-12-12');
 await page.getByLabel('Event time').fill('18:30');
 await page.getByLabel('Event title').fill('Ward Christmas party');
@@ -664,12 +665,29 @@ await page.getByText('Added: Ward Christmas party, 12 Dec 2026').waitFor();
 const party = page.locator('#view .cal-item', { hasText: 'Ward Christmas party' });
 assert.ok((await party.textContent()).includes('6:30 PM'));
 assert.ok(sheet.tabs.Events && sheet.tabs.Events.some((r) => r.includes('Ward Christmas party')));
+// Coming up: the next month as lines to copy; speakers and to-dos only when checked
+const comingUp = () => page.getByLabel('Coming up text').inputValue();
+assert.ok((await page.textContent('#view .coming-up h3')).includes('16 Nov 2026 to 16 Dec 2026'));
+assert.equal(await comingUp(), 'Sun, Dec 6: Fast Sunday\nSat, Dec 12, 6:30 PM: Ward Christmas party');
+await page.getByLabel('Include Speakers').check();
+assert.equal(await comingUp(), 'Sun, Nov 22: Speakers: Dan Dogwood, Nora Newleaf\nSun, Dec 6: Fast Sunday\nSat, Dec 12, 6:30 PM: Ward Christmas party');
+await page.locator('#view .coming-up').getByRole('button', { name: 'Copy' }).click();
+await page.getByText('Copied 3 lines').waitFor();
+assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await comingUp());
+await page.getByLabel('Include Speakers').uncheck();
+await page.getByLabel('Coming up dates').selectOption('weeks2');
+assert.equal(await comingUp(), 'Nothing on the calendar for these dates.');
+assert.ok(await page.locator('#view .coming-up').getByRole('button', { name: 'Copy' }).isDisabled());
+await page.getByLabel('Coming up dates').selectOption('nextMonth');
+assert.ok((await page.textContent('#view .coming-up h3')).includes('1 Dec 2026 to 31 Dec 2026'));
+assert.equal(await comingUp(), 'Sun, Dec 6: Fast Sunday\nSat, Dec 12, 6:30 PM: Ward Christmas party');
+await page.getByLabel('Coming up dates').selectOption('month');
 await noSideScroll('calendar');
 if (SHOTS) await page.screenshot({ path: `${SHOTS}/15-calendar.png`, fullPage: true });
 await party.getByRole('button', { name: 'Remove' }).click();
 await page.getByText('Event removed').waitFor();
 assert.ok(!(await page.textContent('#view')).includes('Ward Christmas party'));
-step('Calendar: stake and ward events, speakers, fast Sundays, high council and assignments by month; event added and removed');
+step('Calendar: stake and ward events, speakers, fast Sundays, high council and assignments by month; item added and removed; Coming up text copied');
 
 // 25. Stake directory: presidency, high council (ours marked, months speaking here), bishops, tap to call
 await go('Stake', 'Stake directory');
