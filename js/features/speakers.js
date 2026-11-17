@@ -248,7 +248,10 @@ function memberSections(m, ctx, close) {
       id: makeId('t'), date: talkDate.value, date_estimated: false, member_id: m.id, member_name: m.name,
       name_as_shown: m.name, ward_member: true, source: 'app', entered_by: ctx.settings.initials, entered_at: ctx.stamp(), notes: '',
     }]);
-    toast(talkDate.value > today ? `Scheduled for ${formatDate(talkDate.value)}` : 'Talk recorded');
+    // Someone marked "Ask soon" has now been asked: the label comes off, so they show green.
+    const cleared = m.category === 'ask_soon';
+    if (cleared) await ctx.store.update('Members', [{ id: m.id, fields: { category: '', category_until: '' } }]);
+    toast(`${talkDate.value > today ? `Scheduled for ${formatDate(talkDate.value)}` : 'Talk recorded'}${cleared ? '; "Ask soon" removed' : ''}`);
     close(); ctx.refresh();
   }).catch(() => {}));
   const decDate = h('input', { type: 'date', value: today, 'aria-label': 'Decline date' });

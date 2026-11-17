@@ -42,6 +42,18 @@ const ctx = {
   fail: (e) => handleError(e),
   signedIn: () => Boolean(state.store),
   bishopric: () => (state.store ? activeBishopric(state.store.records('Bishopric')) : []),
+  // Settings saved in the Sheet's Settings tab, the same for everyone.
+  shared: {
+    get: (key) => {
+      const row = state.store ? state.store.records('Settings').find((r) => String(r.id) === key) : null;
+      return row ? String(row.value ?? '').trim() : '';
+    },
+    set: async (key, value) => {
+      const fields = { value, updated_by: state.settings.initials || '', updated_at: ctx.stamp() };
+      if (state.store.records('Settings').some((r) => String(r.id) === key)) await state.store.update('Settings', [{ id: key, fields }]);
+      else await state.store.add('Settings', [{ id: key, ...fields }]);
+    },
+  },
   me: () => state.me,
   askWhoYouAre: () => askWhoYouAre(),
   reload: () => loadData().catch(handleError),

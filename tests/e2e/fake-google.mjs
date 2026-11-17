@@ -48,7 +48,7 @@ function letters(index) {
 
 class GridError extends Error {}
 
-export function createFakeSheet(initialTabs, { columns = {} } = {}) {
+export function createFakeSheet(initialTabs, { columns = {}, title = 'Fake Sheet' } = {}) {
   const tabs = JSON.parse(JSON.stringify(initialTabs)); // { title: [[row], ...] }
   const meta = {}; // title -> { sheetId, columnCount }
   let nextId = 100;
@@ -92,7 +92,7 @@ export function createFakeSheet(initialTabs, { columns = {} } = {}) {
     let json;
     try {
     if (req.method() === 'GET' && path === '') {
-      json = { sheets: Object.keys(tabs).map((title) => ({ properties: { title, sheetId: meta[title].sheetId, gridProperties: { rowCount: 1000, columnCount: meta[title].columnCount } } })) };
+      json = { properties: { title }, sheets: Object.keys(tabs).map((t) => ({ properties: { title: t, sheetId: meta[t].sheetId, gridProperties: { rowCount: 1000, columnCount: meta[t].columnCount } } })) };
     } else if (req.method() === 'POST' && path === ':batchUpdate') {
       const replies = [];
       for (const r of body.requests) {

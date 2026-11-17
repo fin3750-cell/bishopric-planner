@@ -2,7 +2,7 @@
 
 An installable web app (PWA) for a bishopric to plan sacrament meeting speakers and callings. It
 works from a Google Sheet shared by the bishopric. The tabs along the top are **Speakers**,
-**Callings**, **Members**, **Import** and **Settings**.
+**Callings**, **Calendar**, **Members**, **Import** and **Settings**.
 
 **Speakers**
 
@@ -14,7 +14,8 @@ works from a Google Sheet shared by the bishopric. The tabs along the top are **
     shade means within 1 year or a talk is scheduled, then 1–2 years ago, then 2–3 years ago. With
     a different window, the shades split it into thirds.
   - **Yellow** for people you marked *Ask soon*. This is your pick, set on the person's page. The
-    member import also marks new move-ins *Ask soon*.
+    member import also marks new move-ins *Ask soon*. Recording a talk for someone marked *Ask
+    soon* removes the label, so they turn green.
   - **Red** for *Shouldn't ask* or *Won't accept*.
   - **No color** for no talk within the window and no label.
 
@@ -68,6 +69,33 @@ Don't support) → the bishop approves or does not → someone is chosen to ask 
 → sustained → recorded in LCR → set apart. For a release: decided → member told → released in
 sacrament meeting → recorded in LCR. Asking, setting apart, recording in LCR and telling a member
 about a release can each be assigned to someone's initials.
+
+**Calendar**
+- **Calendar:** one list by month, from the start of this month, six months at a time:
+  - events you add by hand (**Add event**, saved in the Sheet's Events tab);
+  - the stake calendar, read from the stake's own Sheet. Stake-wide events and your ward's show;
+    other wards' are hidden unless you check **Other wards' stake events**;
+  - scheduled speakers (from talks recorded with a future date), open to-dos on their due date;
+  - fast Sundays: the first Sunday of the month, or the second Sunday in April and October
+    (General Conference) and when the stake calendar shows stake conference on the first Sunday;
+  - a note at the top of each month: the high council speaker for your ward and the topic, and
+    your ward's stake assignments (rehab sacrament, hospital blessings).
+- **Stake:** the stake presidency and clerks, the high council (your ward's assigned councilor and
+  the months each one speaks in your ward are marked), stake organization callings and bishops,
+  with phone numbers and emails to tap. These come from the stake Sheet each time; nothing from it
+  is saved in the planner Sheet.
+
+**The stake Sheet (Settings).** Paste the link to the stake's yearly Sheet and how it writes your
+ward (for example MS6), then **Save for everyone**. Both are saved in the planner Sheet's Settings
+tab. The app only reads the stake Sheet, so everyone needs at least view access to it.
+- **A new year:** paste the new Sheet's link. If the stake adds the new year to the same Sheet,
+  nothing needs to change. No code change and no upload are needed.
+- The app finds each part by its tab name and header words: a tab with "Chrono Calendar" in its
+  name (Month, Day, Time, Event, Notes), one with "Speaking" (NAME and the months JAN–DEC, the
+  topics and the code list "MS6 = Morningside 6th"), "Hospital" and "Sacrament" month grids, a
+  tab with NAME, CALLING and ASSIGNED WARD columns, a tab with "Calling" in its name and one
+  starting with "Bishops". If the stake changes that layout, the Calendar lists what it could not
+  read instead of guessing.
 
 The app is built so more features can be added (see [Adding a feature](#adding-a-feature)).
 
@@ -186,6 +214,8 @@ has 26, A to Z), the app adds columns first, because Google refuses to write pas
 | Callings | id, member_id, member_name, organization, calling, proposed_on, approved_on, approved_by (who recorded the bishop's decision), not_approved_on, extend_by, extended_on, accepted_on, declined_on, sustained_on, set_apart_by, set_apart_on, record_by, recorded_on, release_proposed_on, release_by, release_informed_on, released_on, release_record_by, release_recorded_on, source, notes, entered_by, entered_at, void |
 | Votes | id, calling_id, voter (initials), vote (support / oppose), voted_on, entered_at, void |
 | Tasks | id, description, assigned_to, due_on, done_on, done_by, entered_by, entered_at, void |
+| Events | id, date, time, title, notes, entered_by, entered_at, void (events added on the Calendar) |
+| Settings | id (the setting's name), value, updated_by, updated_at: settings shared by everyone, such as `stake_sheet` (the stake Sheet's link) and `stake_ward` |
 
 Each Callings row is one person in one calling, from proposal to release. A later step implies the
 earlier ones, so a calling entered as already sustained is not listed as needing a vote. Callings

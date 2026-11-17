@@ -21,6 +21,10 @@ how to add a feature.
 - Don't delete rows. Mark mistakes with `void` = TRUE.
 - Names of real people, including the bishopric, belong in the Sheet (for example the Bishopric tab),
   never in code or config.
+- The stake's Sheet (Calendar feature) is only read, never written. Its link is the shared
+  `stake_sheet` setting, not code. `js/features/stake-parse.js` finds each part by tab name and
+  header words and reports what it can't read; keep it that way so a new year's Sheet needs no
+  code change.
 - Church guidance (organizations, who sustains and sets apart) lives in `js/features/callings-orgs.js`
   with the General Handbook section for each rule. Don't add rules from memory: read the handbook
   section first and cite it there.
@@ -33,7 +37,7 @@ how to add a feature.
   and a fake in-memory Sheet.
 - When you add or rename a file, update `SHELL` in `sw.js` and raise the `CACHE` version so phones
   pick up the change.
-- New features go in `js/features/` with `{ id, group, tables, views, memberSections }`, then get
+- New features go in `js/features/` with `{ id, group, tables, views, memberSections, settingsSections }`, then get
   registered in `js/features/index.js`.
 - Append page content with `h()` or `add()` from `js/ui.js`, not the browser's `el.append()` with
   lists or null: `append` prints them as text ("[object …]", "null").

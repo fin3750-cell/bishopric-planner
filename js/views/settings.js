@@ -55,6 +55,7 @@ export function renderSettings(root, ctx) {
       ctx.signedIn() ? h('button', { class: 'secondary', text: 'Reload data', onclick: () => ctx.reload() }) : null,
       ctx.signedIn() ? h('button', { class: 'secondary', text: 'Sign out', onclick: () => ctx.signOut() }) : null),
     ctx.signedIn() ? bishopricSection(ctx) : h('p', { class: 'hint', text: 'Sign in to see and edit the Bishopric list.' }),
+    ctx.signedIn() ? ctx.features.flatMap((f) => (f.settingsSections ? f.settingsSections(ctx) : [])) : null,
     h('p', { class: 'hint', text: `Version ${APP_VERSION}. Settings are saved on this device only. Member data is read from the Sheet each time and is not stored on the device.` }));
 }
 

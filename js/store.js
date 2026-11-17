@@ -17,6 +17,11 @@ const SCHEMA = {
     columns: ['id', 'initials', 'name', 'role', 'member_id', 'active', 'email', 'votes'],
     dates: [],
   },
+  // Settings shared by everyone (for example the stake sheet's link). id is the setting's name.
+  Settings: {
+    columns: ['id', 'value', 'updated_by', 'updated_at'],
+    dates: [],
+  },
 };
 
 export function registerTables(tables) {
