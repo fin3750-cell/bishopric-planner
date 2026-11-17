@@ -162,7 +162,8 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
 ## The Sheet
 
 The app finds columns by their header name, so the column order doesn't matter. If a column or tab
-it needs is missing, the app adds it when it loads.
+it needs is missing, the app adds it when it loads. When a tab has no empty columns left (a new tab
+has 26, A to Z), the app adds columns first, because Google refuses to write past a tab's last column.
 
 | Tab | Columns |
 |---|---|

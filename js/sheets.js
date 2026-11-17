@@ -54,13 +54,26 @@ export class SheetsApi {
     return data;
   }
 
-  tabTitles() {
-    return this.request('GET', '?fields=sheets.properties.title')
-      .then((d) => (d.sheets || []).map((s) => s.properties.title));
+  // Each tab: { title, sheetId, columnCount }. A new tab has 26 columns (A to Z); Google refuses
+  // to write past a tab's last column, so columns are added first (addColumns).
+  tabs() {
+    return this.request('GET', '?fields=sheets.properties')
+      .then((d) => (d.sheets || []).map((s) => ({
+        title: s.properties.title,
+        sheetId: s.properties.sheetId,
+        columnCount: (s.properties.gridProperties && s.properties.gridProperties.columnCount) || 0,
+      })));
   }
 
   addTab(title) {
     return this.request('POST', ':batchUpdate', { requests: [{ addSheet: { properties: { title } } }] });
+  }
+
+  // adds: [{ sheetId, count }] -> that many empty columns added after each tab's last column.
+  addColumns(adds) {
+    return this.request('POST', ':batchUpdate', {
+      requests: adds.map((a) => ({ appendDimension: { sheetId: a.sheetId, dimension: 'COLUMNS', length: a.count } })),
+    });
   }
 
   // Dates come back as serial numbers and booleans as true/false, whatever the cell's display format.

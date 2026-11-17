@@ -35,11 +35,34 @@ function parseRange(a1) {
   return { tab: m[1].replace(/''/g, "'"), c1: colIndex(m[2]), r1: m[3] ? +m[3] - 1 : 0, c2: m[4] ? colIndex(m[4]) : colIndex(m[2]), r2: m[5] ? +m[5] - 1 : Infinity };
 }
 
-export function createFakeSheet(initialTabs) {
+// Like Google, each tab has a fixed number of columns (26, A to Z, for a new tab) and writing past
+// the last one is refused until columns are added with appendDimension.
+const NEW_TAB_COLUMNS = 26;
+
+function letters(index) {
+  let n = index + 1;
+  let s = '';
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+class GridError extends Error {}
+
+export function createFakeSheet(initialTabs, { columns = {} } = {}) {
   const tabs = JSON.parse(JSON.stringify(initialTabs)); // { title: [[row], ...] }
+  const meta = {}; // title -> { sheetId, columnCount }
+  let nextId = 100;
+  for (const [title, rows] of Object.entries(tabs)) {
+    meta[title] = { sheetId: nextId++, columnCount: columns[title] || Math.max(NEW_TAB_COLUMNS, ...rows.map((r) => r.length)) };
+  }
   const log = [];
   function cells(tab) { if (!tabs[tab]) throw new Error(`no tab ${tab}`); return tabs[tab]; }
+  function checkColumn(tab, c) {
+    const max = meta[tab].columnCount;
+    if (c >= max) throw new GridError(`Range ('${tab}'!${letters(c)}1) exceeds grid limits. Max rows: 1000, max columns: ${max}`);
+  }
   function setCell(tab, r, c, v) {
+    checkColumn(tab, c);
     const rows = cells(tab);
     while (rows.length <= r) rows.push([]);
     while (rows[r].length <= c) rows[r].push('');
@@ -67,19 +90,42 @@ export function createFakeSheet(initialTabs) {
     }
     log.push(`${req.method()} ${path}`);
     let json;
+    try {
     if (req.method() === 'GET' && path === '') {
-      json = { sheets: Object.keys(tabs).map((title) => ({ properties: { title } })) };
+      json = { sheets: Object.keys(tabs).map((title) => ({ properties: { title, sheetId: meta[title].sheetId, gridProperties: { rowCount: 1000, columnCount: meta[title].columnCount } } })) };
     } else if (req.method() === 'POST' && path === ':batchUpdate') {
-      for (const r of body.requests) if (r.addSheet) tabs[r.addSheet.properties.title] = [];
-      json = {};
+      const replies = [];
+      for (const r of body.requests) {
+        if (r.addSheet) {
+          const title = r.addSheet.properties.title;
+          tabs[title] = [];
+          meta[title] = { sheetId: nextId++, columnCount: NEW_TAB_COLUMNS };
+          replies.push({ addSheet: { properties: { title, sheetId: meta[title].sheetId, gridProperties: { rowCount: 1000, columnCount: NEW_TAB_COLUMNS } } } });
+        } else if (r.appendDimension) {
+          const a = r.appendDimension;
+          const title = Object.keys(meta).find((t) => meta[t].sheetId === a.sheetId);
+          if (!title || a.dimension !== 'COLUMNS') throw new GridError(`fake: bad appendDimension ${JSON.stringify(a)}`);
+          meta[title].columnCount += a.length;
+          replies.push({});
+        } else {
+          throw new GridError(`fake: unhandled batchUpdate request ${JSON.stringify(r)}`);
+        }
+      }
+      json = { replies };
     } else if (req.method() === 'GET' && path === '/values:batchGet') {
       json = { valueRanges: url.searchParams.getAll('ranges').map((r) => ({ range: r, values: getRange(r) })) };
     } else if (req.method() === 'POST' && path.endsWith(':append')) {
       const { tab } = parseRange(path.slice('/values/'.length, -':append'.length));
       const rows = cells(tab);
+      for (const row of body.values) { if (row.length) checkColumn(tab, row.length - 1); }
       for (const row of body.values) rows.push(row.map(userEntered));
       json = {};
     } else if (req.method() === 'POST' && path === '/values:batchUpdate') {
+      // All or nothing, like Google: check every range before writing any.
+      for (const d of body.data) {
+        const { tab, c1 } = parseRange(d.range);
+        d.values.forEach((row) => { if (row.length) checkColumn(tab, c1 + row.length - 1); });
+      }
       for (const d of body.data) {
         const { tab, c1, r1 } = parseRange(d.range);
         d.values.forEach((row, i) => row.forEach((v, j) => setCell(tab, r1 + i, c1 + j, v)));
@@ -88,9 +134,13 @@ export function createFakeSheet(initialTabs) {
     } else {
       return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { message: `fake: unhandled ${req.method()} ${path}` } }) });
     }
+    } catch (e) {
+      if (!(e instanceof GridError)) throw e;
+      return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { message: e.message } }) });
+    }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(json) });
   }
-  return { tabs, log, handle };
+  return { tabs, meta, log, handle };
 }
 
 // Replaces https://accounts.google.com/gsi/client with a script that "signs in" at once.
