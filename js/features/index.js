@@ -3,5 +3,6 @@
 // then add it here.
 import { speakers } from './speakers.js';
 import { callingsFeature } from './callings.js';
+import { calendarFeature } from './calendar.js';
 
-export const FEATURES = [speakers, callingsFeature];
+export const FEATURES = [speakers, callingsFeature, calendarFeature];

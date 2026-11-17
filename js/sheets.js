@@ -65,6 +65,12 @@ export class SheetsApi {
       })));
   }
 
+  // The spreadsheet's name and its tabs (used for another Sheet, like the stake's, which is only read).
+  info() {
+    return this.request('GET', '?fields=properties.title,sheets.properties')
+      .then((d) => ({ title: (d.properties && d.properties.title) || '', tabs: (d.sheets || []).map((s) => ({ title: s.properties.title })) }));
+  }
+
   addTab(title) {
     return this.request('POST', ':batchUpdate', { requests: [{ addSheet: { properties: { title } } }] });
   }

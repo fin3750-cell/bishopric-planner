@@ -7,6 +7,7 @@ import { extname, join, normalize } from 'node:path';
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import { createFakeSheet, FAKE_GIS } from './fake-google.mjs';
+import { STAKE_TABS } from '../fixtures/stake-tabs.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const ROOT = process.cwd();
@@ -38,6 +39,11 @@ const sheet = createFakeSheet({
   About: [['About this sheet']],
 });
 
+// The stake's own Sheet (made-up), which the app only reads; and an id the signed-in person cannot open.
+const STAKE_ID = 'fakeStakeSheet_1234567890abcdef';
+const NO_ACCESS_ID = 'fakeNoAccessSheet_1234567890ab';
+const stakeSheet = createFakeSheet(Object.fromEntries(STAKE_TABS.map((t) => [t.title, t.rows])), { title: 'Example Stake 2027' });
+
 const server = http.createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
   const file = join(ROOT, path.endsWith('/') ? `${path}index.html` : path);
@@ -54,6 +60,7 @@ const browser = await chromium.launch();
 // DARK=1 runs the same checks with the phone in dark mode.
 const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, serviceWorkers: 'block', colorScheme: process.env.DARK ? 'dark' : 'light' });
 const page = await context.newPage();
+await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
@@ -63,7 +70,11 @@ let dismissNext = false;
 page.on('dialog', (d) => { confirms.push(d.message()); if (dismissNext) { dismissNext = false; d.dismiss(); } else d.accept(); });
 await page.clock.setFixedTime(new Date('2026-11-16T12:00:00'));
 await context.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: FAKE_GIS }));
-await context.route('https://sheets.googleapis.com/**', sheet.handle);
+await context.route('https://sheets.googleapis.com/**', (route) => {
+  const path = new URL(route.request().url()).pathname;
+  if (path.includes(NO_ACCESS_ID)) return route.fulfill({ status: 403, contentType: 'application/json', body: '{"error":{"message":"The caller does not have permission"}}' });
+  return (path.includes(STAKE_ID) ? stakeSheet : sheet).handle(route);
+});
 let fakeEmail = 'tess.sample@gmail.com';   // the Google account the fake sign-in reports
 await context.route('https://www.googleapis.com/oauth2/v3/userinfo', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sub: '1', email: fakeEmail, email_verified: true }) }));
 await context.addInitScript(() => {
@@ -228,6 +239,12 @@ assert.equal((await names())[0], 'Newleaf, Nora');
 assert.ok((await page.locator('#view .card').first().textContent()).includes('New to ward'));
 if (SHOTS) await page.screenshot({ path: `${SHOTS}/3-ask-after.png`, fullPage: true });
 step('new member is at the top with "Ask soon" and "New to ward"');
+await page.getByRole('button', { name: /Newleaf, Nora/ }).click();
+await page.getByRole('button', { name: 'Record talk' }).click();
+await page.getByText('Scheduled for 22 Nov 2026; "Ask soon" removed').waitFor();
+assert.equal(rowOf('Newleaf, Nora')[mh.indexOf('category')], '');
+assert.ok(!(await names()).includes('Newleaf, Nora'));
+step('scheduling a talk for someone marked "Ask soon" removes the label');
 
 // 8. Members screen filter shows "Do not ask"
 await go('Members');
@@ -612,6 +629,96 @@ assert.ok(fresh.includes('You: TS — Tess Sample'), fresh);
 assert.equal(await page.locator('#dlg[open]').count(), 0, 'no "Which one are you?" dialog for a known account');
 assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem('bishopric-planner-settings'))).initials, 'TS');
 step('new phone: nothing to set up; signed in and recognized as TS from the Google account');
+
+// 23. Stake calendar Sheet: saved once in Settings, for everyone
+await go('Settings');
+await page.getByLabel('Stake Sheet link').fill(`https://docs.google.com/spreadsheets/d/${STAKE_ID}/edit`);
+await page.getByLabel('Our ward in the stake Sheet').fill('EX6');
+await page.getByRole('button', { name: 'Save for everyone' }).click();
+await page.getByText('Stake Sheet saved for everyone').waitFor();
+const setting = (key) => (sheet.tabs.Settings.find((r) => r[0] === key) || [])[1];
+assert.ok(String(setting('stake_sheet')).includes(STAKE_ID));
+assert.equal(setting('stake_ward'), 'EX6');
+step('stake Sheet link and ward saved in the planner Sheet\'s Settings tab');
+
+// 24. Calendar: stake events read live, our ward's events, speakers, fast Sundays, month notes, problems
+await go('Calendar');
+await page.getByText('Stake Sheet: Example Stake 2027').waitFor({ timeout: 5000 });
+let cal = await page.textContent('#view');
+for (const want of ['November 2026', 'Sun 22 Nov 2026', 'Dogwood, Dan', 'Newleaf, Nora', 'Sun 6 Dec 2026', 'Fast Sunday',
+  'Stake Baptisms', '10:00 AM', 'EX6 - Ward Conference', 'Our ward', 'YSA - Dance',
+  'High council speaker: Bram Thistlewood. Topic: Stake Theme', 'Example Rehab Sacrament Administration (Lark Brambleton)', 'Hospital blessings (Ivo Marchbank)',
+  'Sun 11 Apr 2027', 'Second Sunday: the first Sunday is General Conference.', 'Calendar: Updated 10-25-26',
+  '2 lines in the stake Sheet could not be read as expected']) {
+  assert.ok(cal.includes(want), `Calendar is missing "${want}"`);
+}
+assert.ok(!cal.includes('RR - Ward Conference'), 'another ward\'s event is hidden by default');
+await page.getByLabel('Other wards\' stake events').check();
+assert.ok((await page.textContent('#view')).includes('RR - Ward Conference Training Meeting'));
+await page.getByLabel('Other wards\' stake events').uncheck();
+await page.getByRole('button', { name: 'Add item' }).click();
+await page.getByLabel('Event date').fill('2026-12-12');
+await page.getByLabel('Event time').fill('18:30');
+await page.getByLabel('Event title').fill('Ward Christmas party');
+await page.getByRole('button', { name: 'Add to calendar' }).click();
+await page.getByText('Added: Ward Christmas party, 12 Dec 2026').waitFor();
+const party = page.locator('#view .cal-item', { hasText: 'Ward Christmas party' });
+assert.ok((await party.textContent()).includes('6:30 PM'));
+assert.ok(sheet.tabs.Events && sheet.tabs.Events.some((r) => r.includes('Ward Christmas party')));
+// Coming up: the next month as lines to copy; speakers and to-dos only when checked
+const comingUp = () => page.getByLabel('Coming up text').inputValue();
+assert.ok((await page.textContent('#view .coming-up h3')).includes('16 Nov 2026 to 16 Dec 2026'));
+assert.equal(await comingUp(), 'Sun, Dec 6: Fast Sunday\nSat, Dec 12, 6:30 PM: Ward Christmas party');
+await page.getByLabel('Include Speakers').check();
+assert.equal(await comingUp(), 'Sun, Nov 22: Speakers: Dan Dogwood, Nora Newleaf\nSun, Dec 6: Fast Sunday\nSat, Dec 12, 6:30 PM: Ward Christmas party');
+await page.locator('#view .coming-up').getByRole('button', { name: 'Copy' }).click();
+await page.getByText('Copied 3 lines').waitFor();
+assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await comingUp());
+await page.getByLabel('Include Speakers').uncheck();
+await page.getByLabel('Coming up dates').selectOption('weeks2');
+assert.equal(await comingUp(), 'Nothing on the calendar for these dates.');
+assert.ok(await page.locator('#view .coming-up').getByRole('button', { name: 'Copy' }).isDisabled());
+await page.getByLabel('Coming up dates').selectOption('nextMonth');
+assert.ok((await page.textContent('#view .coming-up h3')).includes('1 Dec 2026 to 31 Dec 2026'));
+assert.equal(await comingUp(), 'Sun, Dec 6: Fast Sunday\nSat, Dec 12, 6:30 PM: Ward Christmas party');
+await page.getByLabel('Coming up dates').selectOption('month');
+await noSideScroll('calendar');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/15-calendar.png`, fullPage: true });
+await party.getByRole('button', { name: 'Remove' }).click();
+await page.getByText('Event removed').waitFor();
+assert.ok(!(await page.textContent('#view')).includes('Ward Christmas party'));
+step('Calendar: stake and ward events, speakers, fast Sundays, high council and assignments by month; item added and removed; Coming up text copied');
+
+// 25. Stake directory: presidency, high council (ours marked, months speaking here), bishops, tap to call
+await go('Stake', 'Stake directory');
+const dir = await page.textContent('#view');
+for (const want of ['Stake presidency and clerks (1)', 'High council (2)', 'Speaks in our ward: Feb 2027', 'Assigned high councilor: Bram Thistlewood',
+  'Stake organizations (1)', 'Bishops (1)', 'Feb 2027: Bram Thistlewood speaks (Stake Theme)']) {
+  assert.ok(dir.includes(want), `Stake screen is missing "${want}": ${dir}`);
+}
+const bram = page.locator('#view .person', { hasText: 'Bram Thistlewood' });
+assert.ok((await bram.textContent()).includes('Our ward'));
+assert.equal(await bram.getByRole('link', { name: '555-010-0002' }).getAttribute('href'), 'tel:5550100002');
+assert.equal(await bram.getByRole('link', { name: 'bt@example.invalid' }).getAttribute('href'), 'mailto:bt@example.invalid');
+await noSideScroll('stake');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/16-stake.png`, fullPage: true });
+assert.ok(stakeSheet.log.length > 0 && stakeSheet.log.every((l) => l.startsWith('GET ')), `the stake Sheet was only read: ${stakeSheet.log.join(', ')}`);
+step('Stake directory with tap-to-call; the stake Sheet was only read, never written');
+
+// 26. A stake Sheet the person cannot open: a clear message, not a broken screen
+const errorsBefore26 = errors.length;
+await go('Settings');
+await page.getByLabel('Stake Sheet link').fill(`https://docs.google.com/spreadsheets/d/${NO_ACCESS_ID}/edit`);
+await page.getByRole('button', { name: 'Save for everyone' }).click();
+await page.getByText('Stake Sheet saved for everyone').waitFor();
+await go('Calendar');
+await page.getByText('Could not read the stake Sheet').waitFor({ timeout: 5000 });
+cal = await page.textContent('#view');
+assert.ok(cal.includes('The caller does not have permission') && cal.includes('needs at least view access') && cal.includes('Fast Sunday'), cal);
+// Chrome logs the refused request itself; that one is expected here. Anything else still fails.
+const extra = errors.splice(errorsBefore26);
+errors.push(...extra.filter((e) => !/status of 403 \(Forbidden\)/.test(e)));
+step('no access to the stake Sheet: the calendar says so and still shows the rest');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');
