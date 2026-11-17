@@ -25,6 +25,16 @@ works from a Google Sheet shared by the bishopric. The tabs along the top are **
   history starts inside the window, a note says so, because "no talk" then may not mean never.
 - **Upcoming:** talks scheduled for future Sundays.
 - **History:** past talks, including visitors.
+- **WardBullet:** paste a program copied from WardBullet (which has no export) and tap **Read
+  program**. Nothing is saved until you review it and tap **Save**.
+  - **Speakers** (with the program's Agenda open) become talks on the program's date. A name that
+    matches one member exactly is chosen; a title and surname ("Sister Example") or a nickname
+    waits for you to pick the member; a name not in the member list is recorded as a visitor.
+    Speakers already recorded for that Sunday are shown and skipped, and "Ask soon" comes off for
+    anyone recorded.
+  - **Dated announcements** (with Announcements open), such as "12/10: Ward Christmas party 6pm",
+    become Calendar items with their time. Items already on the calendar are skipped; dates before
+    the program's are left out. Lines without a date ("today @4pm") are not used.
 - **Members:** everyone, with a planning category: *Ask soon*, *Not now (until a date)*,
   *Shouldn't ask*, *Won't accept*, or status *Moved*.
 - **Import:** a fresh member list, compared with the Sheet. New people are flagged "New to ward"

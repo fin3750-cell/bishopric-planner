@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import { createFakeSheet, FAKE_GIS } from './fake-google.mjs';
 import { STAKE_TABS } from '../fixtures/stake-tabs.mjs';
+import { AGENDA, ANNOUNCEMENTS } from '../fixtures/wardbullet.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const ROOT = process.cwd();
@@ -717,6 +718,60 @@ assert.ok(cal.includes('The caller does not have permission') && cal.includes('n
 const extra = errors.splice(errorsBefore26);
 errors.push(...extra.filter((e) => !/status of 403 \(Forbidden\)/.test(e)));
 step('no access to the stake Sheet: the calendar says so and still shows the rest');
+
+// 27. WardBullet program pasted: speakers become talks after review, dated announcements become calendar items
+await go('Speakers', 'Who to ask');
+await go('WardBullet', 'Import a WardBullet program');
+await page.getByLabel('WardBullet program text').fill(AGENDA);
+await page.getByRole('button', { name: 'Read program' }).click();
+let wb = await page.textContent('#view .program-result');
+assert.ok(wb.includes('Program: Sun, 22 Nov 2026') && wb.includes('Speakers (4)'), wb);
+assert.equal(await page.getByLabel('Who is Cora Cedar').inputValue(), 'm3');                  // exact match chosen
+assert.equal(await page.getByLabel('Who is Sister Firwood').inputValue(), '');                 // a person must choose
+assert.deepEqual(await page.getByLabel('Who is Sister Firwood').locator('option').allTextContents(),
+  ['Choose who this is…', 'Firwood, Fay', 'Visitor (not in the member list)', "Don't record"]);
+assert.equal(await page.getByLabel('Who is Dan Dogwood').count(), 0);                          // already has a talk that Sunday
+assert.ok(wb.includes('Already recorded'));
+assert.equal(await page.getByLabel('Who is Visiting Example').inputValue(), 'visitor');
+assert.ok(!wb.includes('Amy Arbor'), 'the organist is not taken for a speaker');
+await noSideScroll('wardbullet import');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/17-wardbullet.png`, fullPage: true });
+const talksBefore = sheet.tabs.Talks.length;
+await page.locator('#view .program-result').getByRole('button', { name: 'Save' }).click();
+await page.getByText('Choose who "Sister Firwood" is, or pick Visitor or Don\'t record.').waitFor();
+assert.equal(sheet.tabs.Talks.length, talksBefore, 'nothing saved before the choice');
+await page.getByLabel('Who is Sister Firwood').selectOption('m6');
+await page.locator('#view .program-result').getByRole('button', { name: 'Save' }).click();
+await page.getByText('Saved: 3 talks').waitFor();
+const tk = sheet.tabs.Talks[0];
+const added = sheet.tabs.Talks.slice(talksBefore).map((r) => [r[tk.indexOf('date')] === serial('2026-11-22'), r[tk.indexOf('member_id')], r[tk.indexOf('name_as_shown')], r[tk.indexOf('ward_member')], r[tk.indexOf('date_estimated')]]);
+assert.deepEqual(added, [[true, 'm3', 'Cora Cedar', true, false], [true, 'm6', 'Sister Firwood', true, false], [true, '', 'Visiting Example', false, false]]);
+assert.equal(await page.getByLabel('WardBullet program text').inputValue(), '', 'the box is cleared after saving');
+// the same program again: everyone is already recorded
+await page.getByLabel('WardBullet program text').fill(AGENDA);
+await page.getByRole('button', { name: 'Read program' }).click();
+assert.equal(await page.locator('#view .program-result select').count(), 0);
+// announcements: future dated lines, the year rolling into January; a past one and a bad date reported
+await page.getByLabel('WardBullet program text').fill(ANNOUNCEMENTS);
+await page.getByRole('button', { name: 'Read program' }).click();
+wb = await page.textContent('#view .program-result');
+for (const want of ['Calendar items from the announcements (3)', 'Sun, 6 Dec 2026: Christmas Devotional', 'Thu, 10 Dec 2026, 6:00 PM: Ward Christmas party',
+  'Sat, 9 Jan 2027, 9:30 AM: New year service project', '1 dated announcement before 15 Nov 2026 left out.', 'Could not read the date in "13/40: Not a date".', 'Speakers (0)']) {
+  assert.ok(wb.includes(want), `missing "${want}": ${wb}`);
+}
+await page.getByLabel('Add to calendar: New year service project').uncheck();
+await page.locator('#view .program-result').getByRole('button', { name: 'Save' }).click();
+await page.getByText('Saved: 2 calendar items').waitFor();
+const ev = sheet.tabs.Events[0];
+const evRows = sheet.tabs.Events.filter((r) => String(r[ev.indexOf('notes')]).startsWith('From the WardBullet program'));
+assert.deepEqual(evRows.map((r) => [r[ev.indexOf('title')], r[ev.indexOf('date')] === serial(r[ev.indexOf('title')] === 'Christmas Devotional' ? '2026-12-06' : '2026-12-10')]),
+  [['Christmas Devotional', true], ['Ward Christmas party', true]]);
+await page.getByLabel('WardBullet program text').fill(ANNOUNCEMENTS);
+await page.getByRole('button', { name: 'Read program' }).click();
+wb = await page.textContent('#view .program-result');
+assert.equal((wb.match(/Already on the calendar/g) || []).length, 2, wb);
+assert.equal(await page.getByLabel('Add to calendar: New year service project').count(), 1);
+step('WardBullet program: speakers reviewed and recorded (visitor, choice, already recorded); dated announcements added once');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');
