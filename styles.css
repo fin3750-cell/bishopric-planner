@@ -249,7 +249,6 @@ details.problems summary { cursor: pointer; color: var(--error); }
 .contact { color: var(--accent); }
 
 .coming-up h3 { margin: 0 0 4px; font-size: 1.02rem; }
-.coming-up .checks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 4px 0 8px; font-size: 0.92rem; }
 .coming-up textarea { font: inherit; font-size: 0.92rem; line-height: 1.4; white-space: pre-wrap; }
 
 /* "Shouldn't ask" / "Won't accept" on Who to ask, and people found by search who are not on the list */
