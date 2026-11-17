@@ -2,7 +2,8 @@
 // js/features/<name>.js that exports { id, group, tables, views, memberSections } like speakers.js,
 // then add it here.
 import { speakers } from './speakers.js';
+import { programFeature } from './program.js';
 import { callingsFeature } from './callings.js';
 import { calendarFeature } from './calendar.js';
 
-export const FEATURES = [speakers, callingsFeature, calendarFeature];
+export const FEATURES = [speakers, programFeature, callingsFeature, calendarFeature];

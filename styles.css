@@ -259,6 +259,11 @@ details.problems summary { cursor: pointer; color: var(--error); }
   padding: 8px 16px; background: var(--new-bg); color: var(--new-text); font-weight: 600;
 }
 
+/* WardBullet program import */
+.program-result h4 { margin: 12px 0 4px; font-size: 0.98rem; }
+.program-result .row select { max-width: 100%; min-width: 0; flex: 1 1 12em; }
+ul.plain.error { color: var(--error); font-weight: 400; }
+
 /* "Shouldn't ask" / "Won't accept" on Who to ask, and people found by search who are not on the list */
 .card.is-muted { opacity: 0.62; border-left-color: var(--line); }
 .badge.cat-wont_accept { background: var(--line); color: var(--text); }
