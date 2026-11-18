@@ -153,6 +153,9 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
   the device. The service worker caches only the app's own files.
 - The member list is marked *For Church Use Only*. Share the Sheet only with the bishopric.
 - Notes are visible to everyone with access to the Sheet. Keep them brief and kind.
+- **`googled9628817d9ad9a06.html`** proves to Google (Search Console) that the owner's Google account
+  owns `https://fin3750-cell.github.io/bishopric-planner/`, for Google's sign-in branding check.
+  Don't delete or rename it: Google re-checks it, and without it the site stops being verified.
 - **Privacy policy and terms of service:** `privacy/index.html` and `terms/index.html`, published
   at `https://fin3750-cell.github.io/bishopric-planner/privacy/` and `…/terms/` and linked at the
   bottom of every screen. Google's sign-in settings (Branding) point to it. When the app starts reading, storing or
