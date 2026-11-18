@@ -31,7 +31,8 @@ how to add a feature.
 - `privacy/index.html` is the public privacy policy that Google's sign-in settings link to. When a
   change adds a Google permission, saves something new on the device or talks to a new service,
   update the policy and its "Last updated" date in the same change. `terms/index.html` is the terms
-  of service. Neither page may name real people.
+  of service. Neither page may name real people. Keep `googled9628817d9ad9a06.html` (Google Search
+  Console proof of ownership) as it is; it is not part of the app, so it is not in `SHELL`.
 
 ## Working on it
 
