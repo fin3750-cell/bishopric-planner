@@ -92,6 +92,10 @@ body {
 main { max-width: 760px; margin: 0 auto; padding: 12px 16px 48px; }
 .view-title { font-size: 1.25rem; margin: 6px 0 10px; }
 .site-footer { max-width: 760px; margin: -36px auto 0; padding: 0 16px 24px; font-size: 0.85rem; }
+.site-footer p { margin: 0 0 6px; }
+.site-about { color: var(--muted); }
+.signed-in .site-about { display: none; }   /* says what the app is for, before sign-in */
+.policy code { font-size: 0.85em; overflow-wrap: anywhere; }
 .site-footer a, .policy a:not(.button) { color: var(--accent); }
 .policy h3 { font-size: 1.05rem; margin: 18px 0 4px; }
 .policy li { margin: 4px 0; }

@@ -834,13 +834,15 @@ assert.ok(proposedCard.includes('Firwood, Fay') && proposedCard.includes('by Jun
 step('back in the full app, the limited person\'s proposal shows under Proposed with their name');
 
 // 29. Privacy policy: linked at the bottom of every screen, its own page at privacy/, readable on a phone
+assert.equal(await page.locator('.site-about').isVisible(), false, 'the app description is hidden once signed in');
 const policyLink = page.locator('footer.site-footer a', { hasText: 'Privacy policy' });
 assert.equal(await policyLink.getAttribute('href'), 'privacy/');
 await policyLink.click();
 await page.waitForURL(`${BASE}/privacy/`);
 await page.locator('h2', { hasText: 'Privacy policy' }).waitFor();
 const policy = await page.textContent('main');
-for (const s of ['Google Sheets', 'Your email address', 'What is saved on your device', 'Limited Use requirements', 'No analytics']) {
+for (const s of ['Google user data the app accesses', 'auth/spreadsheets', 'auth/userinfo.email', 'How the app uses that data',
+  'How the app stores that data', 'How the app shares that data', 'Keeping and deleting data', 'Limited Use requirements', 'no analytics']) {
   assert.ok(policy.includes(s), `privacy policy is missing "${s}"`);
 }
 assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), process.env.DARK ? 'rgb(18, 22, 29)' : 'rgb(245, 246, 248)', 'the policy page uses the app\'s styles');
@@ -864,6 +866,8 @@ await page.waitForURL(`${BASE}/privacy/`);
 await page.getByRole('link', { name: 'Back to the app' }).click();
 await page.waitForURL(`${BASE}/`);
 await page.locator('footer.site-footer').waitFor();
+assert.ok((await page.locator('.site-about').textContent()).includes('Bishopric Planner helps a ward bishopric'), 'before sign-in the home page says what the app is for');
+assert.ok(await page.locator('.site-about').isVisible());
 step('privacy policy at privacy/ and terms of service at terms/, linked from the app, no sideways scrolling');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
