@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#2f5496">
-  <meta name="description" content="Privacy policy for Bishopric Planner: what the app reads, what it stores and who it talks to.">
+  <meta name="description" content="Privacy policy for Bishopric Planner: the Google user data it accesses, and how it uses, stores, shares and deletes it.">
   <title>Privacy policy · Bishopric Planner</title>
   <link rel="icon" href="../icons/icon-192.png" type="image/png">
   <link rel="stylesheet" href="../styles.css">
@@ -17,83 +17,89 @@
     <h2 class="view-title">Privacy policy</h2>
     <p class="hint">Last updated November 18, 2026</p>
 
-    <p>Bishopric Planner is a small web app that a ward bishopric uses to plan sacrament meeting
-      speakers, track callings and keep a ward calendar. Only people the bishopric invites use it.
-      It is not an official product of The Church of Jesus Christ of Latter-day Saints.</p>
+    <p>Bishopric Planner (<a href="../">fin3750-cell.github.io/bishopric-planner</a>) is a small web
+      app that a ward bishopric uses to plan sacrament meeting speakers, track callings and keep a
+      ward calendar. Only people the bishopric invites use it. It is not an official product of The
+      Church of Jesus Christ of Latter-day Saints. This policy explains what Google user data the app
+      accesses and how it uses, stores, shares and deletes that data.</p>
 
-    <h3>Where the information is kept</h3>
+    <h3>Google user data the app accesses</h3>
     <ul class="plain">
-      <li>The ward's information (member names and ages, talks, callings, calendar items and notes)
-        is kept in one Google Sheet that belongs to the bishopric. The app has no server or database
-        of its own.</li>
-      <li>The member list includes ward members age 8 and older. It comes from the ward's membership
-        records and is for Church use only.</li>
-      <li>The Sheet's sharing settings decide who can see the information, in the app or in Google
-        Sheets. The app only lets a person see what Google lets that person open. Some invited
-        people see only part of the app (callings, the calendar and member names and ages). That
-        limits what the app shows; it is not a separate copy of the data.</li>
-      <li>The app's own files (its code, styles and icons) are hosted on GitHub Pages. They contain no
-        member information.</li>
+      <li><strong>Google Sheets</strong> (permission
+        <code>https://www.googleapis.com/auth/spreadsheets</code>). The app reads and writes one
+        Google Sheet: the bishopric's planner Sheet. It also reads, and never changes, the stake
+        calendar Sheet whose link the bishopric saves in the app. The planner Sheet holds ward
+        members' names and ages (members age 8 and older, from the ward's membership records),
+        sacrament meeting talks, callings, calendar items, notes, and the lists of people invited to
+        use the app with their email addresses. The app does not open, list or change any other
+        spreadsheet in your account.</li>
+      <li><strong>Your email address</strong> (permission
+        <code>https://www.googleapis.com/auth/userinfo.email</code>). The app reads the email address
+        of the Google account you sign in with.</li>
+      <li><strong>A sign-in token.</strong> Google gives the app a token that lasts about an hour, so
+        it can make these requests for you.</li>
+      <li>The app does not access your Gmail, Drive files, contacts, calendar or any other Google
+        data.</li>
     </ul>
 
-    <h3>What the app asks Google for when you sign in</h3>
+    <h3>How the app uses that data</h3>
     <ul class="plain">
-      <li><strong>Google Sheets.</strong> The app uses this permission only to read and write the
-        ward's planner Sheet, and to read (never change) the stake calendar Sheet whose link the
-        bishopric saves in the app. It does not open, list or change any other spreadsheet.</li>
-      <li><strong>Your email address.</strong> The app uses it only to recognize who is signed in, so
-        it can show the right screens. When a member of the bishopric links their account
-        ("Which one are you?"), their email address is saved on the Bishopric list in the Sheet.
-        The bishopric adds the email addresses of other invited people to the Sheet themselves.</li>
-      <li>Google gives the app a sign-in pass that lasts about an hour. The app keeps it only while the
-        page is open. It is never saved on your device or sent anywhere except to Google.</li>
-      <li>Things you add (a calendar item, a proposed calling) are marked with your initials, your name
-        or your email address, so others can see who added them.</li>
+      <li>Sheet data is used only to show and update the ward's plans in the app: who to ask to speak,
+        talks given, callings and releases in progress, and the ward calendar.</li>
+      <li>Your email address is used only to recognize who is signed in, so the app shows the right
+        screens: the whole app for the bishopric, or callings, the calendar and member names and ages
+        for other invited people. When a member of the bishopric links their account ("Which one are
+        you?"), their email address is saved on the Bishopric list in the planner Sheet.</li>
+      <li>Things you add, such as a calendar item or a proposed calling, are marked with your initials,
+        your name or your email address, so others can see who added them.</li>
+      <li>The data is not used for advertising, is not sold, and is not used to train artificial
+        intelligence or machine learning models.</li>
     </ul>
 
-    <h3>What is saved on your device</h3>
+    <h3>How the app stores that data</h3>
     <ul class="plain">
-      <li>A few settings, in this browser only: the planner Sheet's id, the app's Google sign-in id,
-        your initials, and two choices from the Settings screen (the look-back window in years and the
-        minimum age).</li>
-      <li>A copy of the app's own files, so it opens quickly and works with a weak connection.</li>
-      <li>The app does not save member information on your device. It reads it from the Sheet when it
-        opens.</li>
+      <li>Ward information is stored only in the bishopric's Google Sheet, in Google's systems. The app
+        has no server or database of its own, and nothing is sent to its developer.</li>
+      <li>On your device, the app saves only a few settings in this browser: the planner Sheet's id,
+        the app's Google sign-in id, your initials, and two choices from the Settings screen (the
+        look-back window in years and the minimum age). It also keeps a copy of its own files (code,
+        styles and icons) so it opens quickly.</li>
+      <li>Member information and the sign-in token are kept only in the open page's memory. They are
+        not saved on your device and are gone when the app is closed.</li>
+      <li>All requests to Google use encrypted connections (HTTPS).</li>
     </ul>
 
-    <h3>Who the app talks to</h3>
+    <h3>How the app shares that data</h3>
     <ul class="plain">
-      <li>Google, and nothing else: Google sign-in, Google's service that tells the app your email
-        address, and the Google Sheets service.</li>
-      <li>GitHub Pages, to download the app's files. GitHub may record technical information such as
-        IP addresses when the files are downloaded, under
-        <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>.</li>
-      <li>No analytics, advertising, tracking, web fonts or other services. The app sets no cookies of
-        its own. Google sign-in uses Google's cookies, under
-        <a href="https://policies.google.com/privacy">Google's privacy policy</a>.</li>
-    </ul>
-
-    <h3>How the information is used and shared</h3>
-    <ul class="plain">
-      <li>Only to run the app's features for the bishopric and the people it invites.</li>
-      <li>It is not sold, not used for advertising and not shared with anyone outside the people the
-        Sheet is shared with. The app sends nothing to its developer; there is no server that could
-        receive it.</li>
+      <li>The app does not share Google user data with anyone. The only people who can see the ward's
+        information are those the bishopric shares the Google Sheet with; Google's sharing settings
+        enforce that, in the app and in Google Sheets.</li>
+      <li>The app sends data only to Google (Google sign-in, Google's email address service and the
+        Google Sheets service). It uses no analytics, advertising, tracking, web fonts or other outside
+        services, and it sets no cookies of its own.</li>
       <li>Bishopric Planner's use and transfer of information received from Google APIs adheres to the
         <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
         including the Limited Use requirements.</li>
     </ul>
 
-    <h3>Changing or removing information</h3>
+    <h3>Keeping and deleting data</h3>
     <ul class="plain">
-      <li>Information stays in the Sheet until the bishopric changes it. The app does not delete rows;
-        it marks a mistake as void. The Sheet's owner can delete rows in Google Sheets.</li>
-      <li>To have information about you corrected or removed, ask the bishopric.</li>
-      <li>To sign out, use Sign out in the app. To remove the app's access to your Google account, go to
-        <a href="https://myaccount.google.com/permissions">your Google Account's third-party access page</a>
-        and remove Bishopric Planner.</li>
-      <li>To remove the settings saved on your device, clear this site's data in your browser.</li>
+      <li>Information stays in the bishopric's Sheet until the bishopric changes it. The app does not
+        delete rows; it marks a mistake as void. The Sheet's owner can delete rows or the whole Sheet
+        in Google Sheets at any time.</li>
+      <li>To have information about you corrected or deleted, ask the bishopric.</li>
+      <li>To stop the app's access to your Google account, sign out in the app and remove Bishopric
+        Planner on <a href="https://myaccount.google.com/permissions">your Google Account's third-party
+        access page</a>.</li>
+      <li>To delete the settings saved on your device, clear this site's data in your browser.</li>
     </ul>
+
+    <h3>Hosting</h3>
+    <p>The app's files are hosted on GitHub Pages and contain no member information. GitHub may record
+      technical information, such as IP addresses, when the files are downloaded, under
+      <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>.
+      Google sign-in uses Google's own cookies, under
+      <a href="https://policies.google.com/privacy">Google's privacy policy</a>.</p>
 
     <h3>Changes and questions</h3>
     <p>If this policy changes, the new version is posted on this page with a new date. Questions go to

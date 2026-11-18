@@ -177,6 +177,7 @@ function currentView() {
 }
 
 function render() {
+  document.body.classList.toggle('signed-in', Boolean(state.store));
   const view = currentView();
   const views = visibleViews();
   const nav = clear(document.getElementById('tabs'));
