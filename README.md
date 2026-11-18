@@ -153,6 +153,10 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
   the device. The service worker caches only the app's own files.
 - The member list is marked *For Church Use Only*. Share the Sheet only with the bishopric.
 - Notes are visible to everyone with access to the Sheet. Keep them brief and kind.
+- **Privacy policy and terms of service:** `privacy/index.html` and `terms/index.html`, published
+  at `https://fin3750-cell.github.io/bishopric-planner/privacy/` and `…/terms/` and linked at the
+  bottom of every screen. Google's sign-in settings (Branding) point to it. When the app starts reading, storing or
+  sending something new, update the policy and its date in the same change.
 
 ## One-time setup
 
@@ -161,17 +165,23 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
 2. **Google sign-in (OAuth client ID).** At <https://console.cloud.google.com>:
    1. Create a project, for example "Bishopric Planner".
    2. Enable the **Google Sheets API**.
-   3. Set up the consent screen (Google Auth Platform). Choose an **External** audience and leave the
-      publishing status as **Testing**. Add the Google account of **everyone the Sheet is shared
-      with** as a **test user**. Anyone not on that list cannot sign in.
+   3. Set up the consent screen (Google Auth Platform). Choose an **External** audience. On the
+      Branding page, the home page is `https://fin3750-cell.github.io/bishopric-planner/` and the
+      privacy policy is `https://fin3750-cell.github.io/bishopric-planner/privacy/`; the terms of
+      service are `https://fin3750-cell.github.io/bishopric-planner/terms/`. While the
+      publishing status is **Testing**, only Google accounts added as **test users** can sign in.
+      After **Publish app** (status **In production**), anyone can get past Google sign-in; the
+      Sheet's sharing still decides who sees any data. An app Google has not verified is limited to
+      100 users over its lifetime.
    4. Create an **OAuth client**: type **Web application**. Under Authorized JavaScript origins, add
       `https://fin3750-cell.github.io`.
    5. Copy the **Client ID** into `config.js` (`CLIENT_ID`). This is done: the app's client ID is set,
       so nobody needs to paste it in Settings. A client ID is not a secret.
 
    Google's console labels change from time to time, so these steps may be worded slightly
-   differently. While the app is in "Testing", Google shows a "Google hasn't verified this app"
-   screen at the first sign-in. Choose **Continue**.
+   differently. Because the app is not verified by Google, Google shows a "Google hasn't verified
+   this app" screen at the first sign-in. Choose **Continue** (in production: **Advanced**, then
+   **Go to …**).
 3. **GitHub Pages.** In the repository's settings, open **Pages**, set the source to **Deploy from a
    branch**, choose branch `main` and folder `/ (root)`, and save. The app will be at
    `https://fin3750-cell.github.io/bishopric-planner/`. GitHub publishes a merged change in about

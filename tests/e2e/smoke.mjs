@@ -833,6 +833,39 @@ const proposedCard = await page.locator('#view .card', { hasText: 'Primary Piani
 assert.ok(proposedCard.includes('Firwood, Fay') && proposedCard.includes('by Juno Limited'), proposedCard);
 step('back in the full app, the limited person\'s proposal shows under Proposed with their name');
 
+// 29. Privacy policy: linked at the bottom of every screen, its own page at privacy/, readable on a phone
+const policyLink = page.locator('footer.site-footer a', { hasText: 'Privacy policy' });
+assert.equal(await policyLink.getAttribute('href'), 'privacy/');
+await policyLink.click();
+await page.waitForURL(`${BASE}/privacy/`);
+await page.locator('h2', { hasText: 'Privacy policy' }).waitFor();
+const policy = await page.textContent('main');
+for (const s of ['Google Sheets', 'Your email address', 'What is saved on your device', 'Limited Use requirements', 'No analytics']) {
+  assert.ok(policy.includes(s), `privacy policy is missing "${s}"`);
+}
+assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), process.env.DARK ? 'rgb(18, 22, 29)' : 'rgb(245, 246, 248)', 'the policy page uses the app\'s styles');
+await noSideScroll('privacy policy');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/19-privacy.png`, fullPage: true });
+await page.getByRole('link', { name: 'Back to the app' }).click();
+await page.waitForURL(`${BASE}/`);
+const termsLink = page.locator('footer.site-footer a', { hasText: 'Terms of service' });
+assert.equal(await termsLink.getAttribute('href'), 'terms/');
+await termsLink.click();
+await page.waitForURL(`${BASE}/terms/`);
+await page.locator('h2', { hasText: 'Terms of service' }).waitFor();
+const terms = await page.textContent('main');
+for (const s of ['Who may use it', 'for Church use only', 'without any warranty', "Google's Terms of Service"]) {
+  assert.ok(terms.includes(s), `terms of service is missing "${s}"`);
+}
+await noSideScroll('terms of service');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/20-terms.png`, fullPage: true });
+await page.getByRole('link', { name: 'privacy policy' }).click();     // the terms link to the policy
+await page.waitForURL(`${BASE}/privacy/`);
+await page.getByRole('link', { name: 'Back to the app' }).click();
+await page.waitForURL(`${BASE}/`);
+await page.locator('footer.site-footer').waitFor();
+step('privacy policy at privacy/ and terms of service at terms/, linked from the app, no sideways scrolling');
+
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');
 await browser.close();

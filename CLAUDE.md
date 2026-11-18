@@ -28,6 +28,10 @@ how to add a feature.
 - Church guidance (organizations, who sustains and sets apart) lives in `js/features/callings-orgs.js`
   with the General Handbook section for each rule. Don't add rules from memory: read the handbook
   section first and cite it there.
+- `privacy/index.html` is the public privacy policy that Google's sign-in settings link to. When a
+  change adds a Google permission, saves something new on the device or talks to a new service,
+  update the policy and its "Last updated" date in the same change. `terms/index.html` is the terms
+  of service. Neither page may name real people.
 
 ## Working on it
 
