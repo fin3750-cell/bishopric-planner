@@ -19,6 +19,10 @@ function userEntered(v) {
   if (v === 'FALSE') return false;
   const serial = isoToSerial(v);
   if (serial !== null) return serial;
+  // "2026-12" (a Topics month) may be read by Sheets as a date, the 1st of that month: the fake
+  // assumes it is, so the app is tested against the harder case.
+  const ym = v.match(/^(\d{4})-(\d{2})$/);
+  if (ym) return isoToSerial(`${ym[1]}-${ym[2]}-01`);
   if (v !== '' && /^-?\d+(\.\d+)?$/.test(v)) return Number(v);
   return v;
 }

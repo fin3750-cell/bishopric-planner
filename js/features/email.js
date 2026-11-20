@@ -11,7 +11,7 @@ import { makeId } from '../members.js';
 import { h, add, clear, field, select, busy, toast } from '../ui.js';
 import { calendarItems } from './calendar-logic.js';
 import { stakeId, stakeData, loadStake, wardNames, monthEnd } from './calendar.js';
-import { TOPIC_COLUMNS, parseTopics, topicRows, topicsFor, topicMonths, monthLabel, defaultEmailMonth, emailDraft, suggestedMessage, wordCount } from './email-logic.js';
+import { TOPIC_COLUMNS, parseTopics, topicRows, topicsFor, topicMonths, monthLabel, defaultEmailMonth, emailDraft, suggestedMessage, wordCount, monthOf } from './email-logic.js';
 
 // messages: what the bishopric typed, per month, kept while the app is open.
 const view = { month: '', messages: {}, paste: '' };
@@ -101,7 +101,7 @@ function topicsImport(ctx) {
     const p = parseTopics(view.paste);
     const save = h('button', { text: `Save ${p.months.length} ${p.months.length === 1 ? 'month' : 'months'}`, disabled: !p.months.length });
     save.addEventListener('click', () => busy(save, async () => {
-      const replaced = rows.filter((r) => String(r.void).toUpperCase() !== 'TRUE' && p.months.some((m) => m.month === String(r.month)));
+      const replaced = rows.filter((r) => String(r.void).toUpperCase() !== 'TRUE' && p.months.some((m) => m.month === monthOf(r.month)));
       if (replaced.length) await ctx.store.update('Topics', replaced.map((r) => ({ id: r.id, fields: { void: true } })));
       await ctx.store.add('Topics', topicRows(p.months, makeId, { entered_by: ctx.who(), entered_at: ctx.stamp() }));
       toast(`Saved topics for ${p.months.length} ${p.months.length === 1 ? 'month' : 'months'}`);

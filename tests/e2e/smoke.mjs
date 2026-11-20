@@ -10,6 +10,7 @@ import { createFakeSheet, FAKE_GIS } from './fake-google.mjs';
 import { STAKE_TABS } from '../fixtures/stake-tabs.mjs';
 import { AGENDA, ANNOUNCEMENTS } from '../fixtures/wardbullet.mjs';
 import { TOPICS_PLAIN, TOPICS_MD } from '../fixtures/topics.mjs';
+import { monthOf } from '../../js/features/email-logic.js';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const ROOT = process.cwd();
@@ -924,7 +925,8 @@ await page.getByText('Saved topics for 3 months').waitFor();
 assert.ok((await page.textContent('#view')).includes('Saved: November 2026 to January 2027.'));
 const topicHead = sheet.tabs.Topics[0];
 assert.equal(sheet.tabs.Topics.length, 13, 'header + 12 rows');
-await go('Calendar');
+// Load everything again from the Sheet, as on another day: the months come back as Sheets stored them
+await signInAs('tess.sample@gmail.com', 'Calendar');
 await go('EX6 Update Email', 'EX6 Update Email: November 2026');
 await page.getByLabel('Email month').selectOption('2026-12');
 await page.locator('#view .view-title', { hasText: 'EX6 Update Email: December 2026' }).waitFor();
@@ -955,7 +957,8 @@ await page.getByRole('button', { name: 'Read topics' }).click();
 await page.getByRole('button', { name: 'Save 1 month' }).click();
 await page.getByText('Saved topics for 1 month').waitFor();
 await noSideScroll('import with topics');
-const live = (month) => sheet.tabs.Topics.slice(1).filter((r) => r[topicHead.indexOf('month')] === month && String(r[topicHead.indexOf('void')]).toUpperCase() !== 'TRUE');
+const live = (month) => sheet.tabs.Topics.slice(1).filter((r) => monthOf(r[topicHead.indexOf('month')]) === month && String(r[topicHead.indexOf('void')]).toUpperCase() !== 'TRUE');
+assert.equal(typeof sheet.tabs.Topics[1][topicHead.indexOf('month')], 'number', 'the fake stored the month as a date, like Sheets may');
 assert.deepEqual([live('2026-11').length, live('2026-12').length, live('2027-01').length], [5, 3, 2]);
 await go('Calendar');
 await go('EX6 Update Email', 'EX6 Update Email: December 2026');

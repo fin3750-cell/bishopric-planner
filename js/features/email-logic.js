@@ -3,7 +3,7 @@
 // the month's topics, calendar items and a short message into a subject line and plain-text body.
 
 import { isTrue } from '../members.js';
-import { addMonths } from '../dates.js';
+import { addMonths, parseDate } from '../dates.js';
 import { comingUpText } from './calendar-logic.js';
 
 export const TOPIC_COLUMNS = ['id', 'month', 'theme', 'n', 'kind', 'sunday', 'date', 'title', 'speaker', 'note', 'entered_by', 'entered_at', 'void'];
@@ -117,9 +117,19 @@ export function topicRows(months, makeId, stamp = {}) {
   return rows;
 }
 
+// A Topics row's month as 'YYYY-MM'. It is written as text "2026-12", but Google Sheets may read
+// that as a date (Dec 1, 2026) and hand back a serial number or a date: all of them read the same.
+export function monthOf(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}$/.test(s)) return s;
+  const iso = parseDate(typeof v === 'number' ? v : s);
+  return iso ? iso.slice(0, 7) : '';
+}
+
 // The saved topics for one month ('YYYY-MM'), from the Topics tab's rows, or null.
 export function topicsFor(rows, month) {
-  const list = rows.filter((r) => !isTrue(r.void) && String(r.month) === month).sort((a, b) => Number(a.n) - Number(b.n));
+  const list = rows.filter((r) => !isTrue(r.void) && monthOf(r.month) === month).sort((a, b) => Number(a.n) - Number(b.n));
   if (!list.length) return null;
   return {
     month,
@@ -132,7 +142,7 @@ export function topicsFor(rows, month) {
 
 // The months the Topics tab has, sorted ('YYYY-MM').
 export function topicMonths(rows) {
-  return [...new Set(rows.filter((r) => !isTrue(r.void) && r.month).map((r) => String(r.month)))].sort();
+  return [...new Set(rows.filter((r) => !isTrue(r.void)).map((r) => monthOf(r.month)).filter(Boolean))].sort();
 }
 
 export function monthLabel(month) { return `${MONTH_NAMES[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`; }
