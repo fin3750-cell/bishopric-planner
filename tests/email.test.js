@@ -1,7 +1,7 @@
 // Run with:  node --test      The monthly update email: reading the topics document and the draft (made-up names).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTopics, topicRows, topicsFor, topicMonths, defaultEmailMonth, emailDraft, dateIn, suggestedMessage, wordCount } from '../js/features/email-logic.js';
+import { parseTopics, topicRows, topicsFor, topicMonths, defaultEmailMonth, emailDraft, dateIn, suggestedMessage, wordCount, monthOf } from '../js/features/email-logic.js';
 import { TOPICS_PLAIN, TOPICS_MD } from './fixtures/topics.mjs';
 
 test('dates in the topics document', () => {
@@ -55,6 +55,12 @@ test('saved rows round-trip; a month replaced; which month by default', () => {
   assert.deepEqual(dec.lessons.map((l) => l.date), ['2026-12-06', '2026-12-20', '2026-12-27']);
   assert.equal(topicsFor(rows.map((r) => ({ ...r, void: r.month === '2026-12' })), '2026-12'), null);
   assert.equal(topicsFor(rows, '2027-05'), null);
+  // Google Sheets may turn the text "2026-12" into a date: a serial number, or an ISO date once read
+  const serial = (iso) => (Date.UTC(...iso.split('-').map((x, i) => Number(x) - (i === 1 ? 1 : 0))) - Date.UTC(1899, 11, 30)) / 86400000;
+  assert.deepEqual(['2026-12', serial('2026-12-01'), '2026-12-01', '12/1/2026', '', 'junk'].map(monthOf), ['2026-12', '2026-12', '2026-12', '2026-12', '', '']);
+  const asDates = rows.map((r) => ({ ...r, month: serial(`${r.month}-01`) }));
+  assert.equal(topicsFor(asDates, '2026-12').lessons.length, 3);
+  assert.deepEqual(topicMonths(asDates), ['2026-11', '2026-12', '2027-01']);
   assert.deepEqual(['2026-11-01', '2026-11-19', '2026-11-20', '2026-12-31'].map(defaultEmailMonth), ['2026-11', '2026-11', '2026-12', '2027-01']);
 });
 

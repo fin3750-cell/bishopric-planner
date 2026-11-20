@@ -90,7 +90,7 @@ function itemRow(ctx, it) {
     body = h('span', {}, it.people.map((p, i) => [i ? ', ' : '', p.member_id
       ? h('button', { class: 'link', text: p.name, onclick: () => ctx.openMember(p.member_id) }) : p.name]));
   } else {
-    body = h('span', {}, h('strong', { text: it.title }), it.who ? ` · ${it.who}` : '');
+    body = h('span', {}, h('strong', { text: it.title }), it.location ? h('span', { class: 'cal-loc', text: ` · ${it.location}` }) : null, it.who ? ` · ${it.who}` : '');
   }
   let actions = null;
   // Items added by hand (or from a WardBullet program) can be fixed or removed. The limited app
@@ -116,18 +116,20 @@ function eventDialog(ctx, it = null) {
   openDialog(it ? 'Edit calendar item' : 'Add a calendar item', (close) => {
     const date = h('input', { type: 'date', value: it ? it.date : ctx.today(), 'aria-label': 'Event date' });
     const time = h('input', { type: 'time', value: it ? it.time : '', 'aria-label': 'Event time' });
-    const title = h('input', { type: 'text', value: it ? it.title : '', placeholder: 'e.g. Ward Christmas party', 'aria-label': 'Event title' });
-    const notes = h('input', { type: 'text', value: it ? it.notes : '', placeholder: 'Optional', 'aria-label': 'Event notes' });
+    // autocomplete off: the browser should not offer earlier entries (a location typed once is not a default).
+    const title = h('input', { type: 'text', value: it ? it.title : '', placeholder: 'e.g. Ward Christmas party', autocomplete: 'off', 'aria-label': 'Event title' });
+    const location = h('input', { type: 'text', value: it ? it.location || '' : '', placeholder: 'Optional, e.g. the church', autocomplete: 'off', 'aria-label': 'Event location' });
+    const notes = h('input', { type: 'text', value: it ? it.notes : '', placeholder: 'Optional', autocomplete: 'off', 'aria-label': 'Event notes' });
     const save = h('button', { text: it ? 'Save changes' : 'Add to calendar' });
     save.addEventListener('click', () => busy(save, async () => {
       if (!date.value || !title.value.trim()) throw new Error('Enter the date and what it is.');
-      const fields = { date: date.value, time: time.value, title: title.value.trim(), notes: notes.value.trim() };
+      const fields = { date: date.value, time: time.value, title: title.value.trim(), location: location.value.trim(), notes: notes.value.trim() };
       if (it) await ctx.store.update('Events', [{ id: it.ref.id, fields }]);
       else await ctx.store.add('Events', [{ id: makeId('ev'), ...fields, entered_by: ctx.who(), entered_at: ctx.stamp() }]);
       toast(`${it ? 'Saved' : 'Added'}: ${fields.title}, ${formatDate(fields.date)}`);
       close(); ctx.refresh();
     }).catch(() => {}));
-    return [field('Date', date), field('Time (optional)', time), field('What', title), field('Notes', notes), save];
+    return [field('Date', date), field('Time (optional)', time), field('What', title), field('Location (optional)', location), field('Notes (optional)', notes), save];
   });
 }
 
