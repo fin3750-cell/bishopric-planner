@@ -170,8 +170,9 @@ function renderHeader() {
   btn.textContent = state.store ? 'Sign in again' : 'Sign in';
 }
 
+// The app opens on the Calendar (for the bishopric and limited access alike) unless the address names a screen.
 function currentView() {
-  const id = (location.hash || '#ask').slice(1);
+  const id = (location.hash || '#calendar').slice(1);
   const views = visibleViews();
   return views.find((v) => v.id === id) || views[0];
 }

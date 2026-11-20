@@ -868,7 +868,13 @@ await page.waitForURL(`${BASE}/`);
 await page.locator('footer.site-footer').waitFor();
 assert.ok((await page.locator('.site-about').textContent()).includes('Bishopric Planner helps a ward bishopric'), 'before sign-in the home page says what the app is for');
 assert.ok(await page.locator('.site-about').isVisible());
-step('privacy policy at privacy/ and terms of service at terms/, linked from the app, no sideways scrolling');
+assert.equal(await page.textContent('#view .view-title'), 'Calendar', 'the app opens on the Calendar');
+assert.ok((await page.textContent('#tabs .tab.active')).includes('Calendar'));
+await page.getByRole('button', { name: 'Sign in with Google' }).click();
+await page.getByText(/^Loaded \d+ members$/).waitFor();
+assert.equal(await page.textContent('#view .view-title'), 'Calendar', 'still on the Calendar after signing in');
+assert.equal(new URL(page.url()).hash, '', 'no screen in the address');
+step('privacy policy at privacy/ and terms of service at terms/, linked from the app; the app opens on the Calendar');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');

@@ -193,7 +193,8 @@ The app is built so more features can be added (see [Adding a feature](#adding-a
    published, a bar says "A new version of the app is ready" with a **Reload** button. The bottom
    of Settings shows the version.
 4. **On each phone.** Open the app's address and choose **Sign in with Google**. The Sheet and the
-   client ID are built into the app (`config.js`), so there is nothing to type.
+   client ID are built into the app (`config.js`), so there is nothing to type. The app opens on the
+   **Calendar**; an address with a screen in it (for example `…/#ask`) opens that screen instead.
    - **The first time** someone signs in, the app asks **"Which one are you?"** and saves their Google
      account on the Bishopric list. After that it recognizes them on any device and sets their
      initials.
