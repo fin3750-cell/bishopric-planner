@@ -248,6 +248,7 @@ a.button.secondary-link { background: transparent; color: var(--accent); border:
 /* Calendar and Stake screens */
 .cal-month { margin-bottom: 8px; }
 .cal-item { align-items: flex-start; }
+.cal-actions { display: flex; gap: 6px; flex: none; }
 .cal-main { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; flex: 1 1 14em; min-width: 0; }
 .cal-time { font-weight: 600; font-size: 0.92rem; }
 .cal-main .note { flex-basis: 100%; }

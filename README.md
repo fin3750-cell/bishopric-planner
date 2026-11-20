@@ -110,7 +110,8 @@ about a release can each be assigned to someone's initials.
   speakers, to-dos and other wards' events are left out, and your ward's code is left off its own
   events ("Ward Conference", not "MS6 - Ward Conference").
 - **Calendar:** one list by month, from the start of this month, six months at a time:
-  - items you add by hand (**Add item**, saved in the Sheet's Events tab);
+  - items you add by hand (**Add item**, saved in the Sheet's Events tab). **Edit** fixes one in
+    place (same row); **Remove** marks it void. Limited access can edit or remove only its own;
   - the stake calendar, read from the stake's own Sheet. Stake-wide events and your ward's show;
     other wards' are hidden unless you check **Other wards' stake events**;
   - scheduled speakers (from talks recorded with a future date), open to-dos on their due date;

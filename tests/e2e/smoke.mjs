@@ -662,10 +662,32 @@ assert.equal(await comingUp(), 'Sat, Dec 12, 6:30 PM: Ward Christmas party');
 await page.getByLabel('Coming up dates').selectOption('month');
 await noSideScroll('calendar');
 if (SHOTS) await page.screenshot({ path: `${SHOTS}/15-calendar.png`, fullPage: true });
+// Fix a mistake: Edit opens the item as saved; Save changes the same Sheet row (no new row)
+const evCount = sheet.tabs.Events.length;
+const evHead = sheet.tabs.Events[0];
+const partyRow = () => sheet.tabs.Events.find((r) => String(r[evHead.indexOf('title')]).startsWith('Ward Christmas'));
+const partyId = partyRow()[evHead.indexOf('id')];
+await party.getByRole('button', { name: 'Edit' }).click();
+assert.equal(await page.textContent('#dlg .dlg-head h2'), 'Edit calendar item');
+assert.deepEqual([await page.getByLabel('Event date').inputValue(), await page.getByLabel('Event time').inputValue(), await page.getByLabel('Event title').inputValue()],
+  ['2026-12-12', '18:30', 'Ward Christmas party']);
+await page.getByLabel('Event date').fill('2026-12-11');
+await page.getByLabel('Event time').fill('19:00');
+await page.getByLabel('Event title').fill('Ward Christmas party and dinner');
+await page.getByLabel('Event notes').fill('Bring a side dish');
+await page.getByRole('button', { name: 'Save changes' }).click();
+await page.getByText('Saved: Ward Christmas party and dinner, 11 Dec 2026').waitFor();
+assert.equal(sheet.tabs.Events.length, evCount, 'no new row');
+assert.equal(partyRow()[evHead.indexOf('id')], partyId, 'the same row');
+assert.equal(partyRow()[evHead.indexOf('title')], 'Ward Christmas party and dinner');
+assert.equal(partyRow()[evHead.indexOf('entered_by')], 'TS', 'who added it stays');
+assert.ok((await party.textContent()).includes('7:00 PM'));
+assert.equal(await comingUp(), 'Fri, Dec 11, 7:00 PM: Ward Christmas party and dinner (Bring a side dish)');
+await noSideScroll('calendar after edit');
 await party.getByRole('button', { name: 'Remove' }).click();
 await page.getByText('Event removed').waitFor();
 assert.ok(!(await page.textContent('#view')).includes('Ward Christmas party'));
-step('Calendar: stake and ward events, speakers, fast Sundays, high council and assignments by month; item added and removed; Coming up text copied');
+step('Calendar: stake and ward events, speakers, fast Sundays, high council and assignments by month; item added, edited and removed; Coming up text copied');
 
 // 25. Stake directory: presidency, high council (ours marked, months speaking here), bishops, tap to call
 await go('Stake', 'Stake directory');
@@ -811,6 +833,8 @@ await page.getByRole('button', { name: 'Add to calendar' }).click();
 await page.getByText('Added: Ward council meeting, 29 Nov 2026').waitFor();
 assert.equal(await page.locator('#view .cal-item', { hasText: 'Ward council meeting' }).getByRole('button', { name: 'Remove' }).count(), 1);
 assert.equal(await page.locator('#view .cal-item', { hasText: 'Christmas Devotional' }).getByRole('button', { name: 'Remove' }).count(), 0, 'cannot remove items others added');
+assert.equal(await page.locator('#view .cal-item', { hasText: 'Ward council meeting' }).getByRole('button', { name: 'Edit' }).count(), 1);
+assert.equal(await page.locator('#view .cal-item', { hasText: 'Christmas Devotional' }).getByRole('button', { name: 'Edit' }).count(), 0, 'cannot edit items others added');
 const evh = sheet.tabs.Events[0];
 assert.equal(sheet.tabs.Events.find((r) => r[evh.indexOf('title')] === 'Ward council meeting')[evh.indexOf('entered_by')], 'Juno Limited');
 await noSideScroll('limited calendar');
