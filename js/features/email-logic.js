@@ -148,15 +148,30 @@ function shortDate(iso) {
   return `${DAY[new Date(`${iso}T00:00:00Z`).getUTCDay()]}, ${MONTH_NAMES[m - 1].slice(0, 3)} ${d}`;
 }
 
+// A starting message for the month, about 50 words, from the theme and the first lesson's talk.
+// The app reads no talk text (it talks only to Google), so a quote is the bishopric's to add.
+export function suggestedMessage(month, topics) {
+  const name = MONTH_NAMES[Number(month.slice(5, 7)) - 1];
+  if (!topics || !topics.theme) return '';
+  const first = topics.lessons.find((l) => l.speaker);
+  const lessons = first ? ` Our Sunday lessons begin with “${first.title.replace(/^[“"]|[”"]$/g, '')}” by ${first.speaker}.` : '';
+  return `This ${name}, our ward theme is “${topics.theme}.”${lessons} Please read the talks before Sunday and come ready to share. We love you and are grateful to serve you.`;
+}
+
+export function wordCount(s) { return String(s || '').trim().split(/\s+/).filter(Boolean).length; }
+
 // { subject, body } for the email. ward: the ward's code ("MS6"); month: 'YYYY-MM'; topics: from
 // topicsFor (or null); items: calendarItems for that month; message: the bishopric's short message.
-// The calendar part lists ward and stake events only, the same lines as "Coming up".
+// Order: the message, the calendar (ward and stake events, the same lines as "Coming up"), the
+// month's theme and Sunday lessons, then "The Bishopric". Sacrament meeting talks are not listed.
 export function emailDraft({ ward = '', month, message = '', topics = null, items = [] }) {
   const name = MONTH_NAMES[Number(month.slice(5, 7)) - 1];
   const subject = `${ward ? `${ward} ` : ''}Bishopric Message - ${name}`;
   const out = [];
   const msg = String(message || '').trim();
   if (msg) out.push(msg, '');
+  const cal = comingUpText({ items, include: { events: true } });
+  if (cal) out.push('Calendar', ...cal.split('\n').map((l) => `- ${l}`), '');
   if (topics) {
     if (topics.theme) out.push(`${name} theme: ${topics.theme}`, '');
     if (topics.lessons.length) {
@@ -167,14 +182,7 @@ export function emailDraft({ ward = '', month, message = '', topics = null, item
       }
       out.push('');
     }
-    if (topics.talks.length) {
-      out.push('Sacrament meeting talks');
-      for (const t of topics.talks) out.push(`- ${t.title} — ${t.speaker}`);
-      out.push('');
-    }
   }
-  const cal = comingUpText({ items, include: { events: true } });
-  if (cal) out.push('Calendar', ...cal.split('\n').map((l) => `- ${l}`), '');
   out.push('The Bishopric');
   return { subject, body: out.join('\n') };
 }

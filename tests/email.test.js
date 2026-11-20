@@ -1,7 +1,7 @@
 // Run with:  node --test      The monthly update email: reading the topics document and the draft (made-up names).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTopics, topicRows, topicsFor, topicMonths, defaultEmailMonth, emailDraft, dateIn } from '../js/features/email-logic.js';
+import { parseTopics, topicRows, topicsFor, topicMonths, defaultEmailMonth, emailDraft, dateIn, suggestedMessage, wordCount } from '../js/features/email-logic.js';
 import { TOPICS_PLAIN, TOPICS_MD } from './fixtures/topics.mjs';
 
 test('dates in the topics document', () => {
@@ -58,7 +58,7 @@ test('saved rows round-trip; a month replaced; which month by default', () => {
   assert.deepEqual(['2026-11-01', '2026-11-19', '2026-11-20', '2026-12-31'].map(defaultEmailMonth), ['2026-11', '2026-11', '2026-12', '2027-01']);
 });
 
-test('the email draft: subject, message, theme, lessons, talks, calendar, sign-off', () => {
+test('the email draft: subject, message, calendar, theme, lessons, sign-off (no sacrament talks)', () => {
   let n = 0;
   const rows = topicRows(parseTopics(TOPICS_PLAIN).months, (pfx) => `${pfx}${++n}`);
   const items = [
@@ -72,6 +72,10 @@ test('the email draft: subject, message, theme, lessons, talks, calendar, sign-o
   assert.equal(d.body, [
     'Merry Christmas to every family.',
     '',
+    'Calendar',
+    '- Thu, Dec 10, 6:00 PM: Ward Christmas party',
+    '- Sun, Dec 13, 7:00 PM: Ward Conference',
+    '',
     'December theme: Light of the World (Example)',
     '',
     'Sunday lessons',
@@ -79,16 +83,21 @@ test('the email draft: subject, message, theme, lessons, talks, calendar, sign-o
     '- Sun, Dec 20: Christmas Program (no lessons or talks assigned)',
     '- Sun, Dec 27: Joy Comes in the Morning — Fay Fixture',
     '',
-    'Sacrament meeting talks',
-    '- Light and Life — Gus Sample',
-    '- Come unto Him — Ann Example',
-    '',
-    'Calendar',
-    '- Thu, Dec 10, 6:00 PM: Ward Christmas party',
-    '- Sun, Dec 13, 7:00 PM: Ward Conference',
-    '',
     'The Bishopric',
   ].join('\n'));   // no fast Sunday or speakers in the calendar part; the ward's code is dropped from its own event
   const bare = emailDraft({ month: '2027-03', topics: null, items: [] });
   assert.deepEqual(bare, { subject: 'Bishopric Message - March', body: 'The Bishopric' });
+});
+
+test('the suggested message: about 50 words, from the theme and the first lesson', () => {
+  let n = 0;
+  const rows = topicRows(parseTopics(TOPICS_PLAIN).months, (pfx) => `${pfx}${++n}`);
+  const nov = suggestedMessage('2026-11', topicsFor(rows, '2026-11'));
+  assert.equal(nov, 'This November, our ward theme is “Example Theme of Giving.” Our Sunday lessons begin with “A Generous Heart” by Ann Example. Please read the talks before Sunday and come ready to share. We love you and are grateful to serve you.');
+  assert.equal(wordCount(nov), 41);
+  // a title already in quotes is not quoted twice
+  const quoted = { theme: 'Example', lessons: [{ title: '“Open Hands”', speaker: 'Bo Sample' }], talks: [] };
+  assert.match(suggestedMessage('2026-11', quoted), /begin with “Open Hands” by Bo Sample\./);
+  assert.equal(suggestedMessage('2026-11', null), '');
+  assert.equal(wordCount('  one two\nthree  '), 3);
 });

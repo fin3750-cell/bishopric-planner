@@ -125,16 +125,19 @@ about a release can each be assigned to someone's initials.
   is saved in the planner Sheet.
 - **<ward> Update Email** (for example *MS6 Update Email*; bishopric only, not in the limited app):
   a draft of the monthly email to the ward. Pick the month (this month until the 19th, then next
-  month), write a short message, then copy the subject (*MS6 Bishopric Message - December*) and the
-  text into the ward's email. The text has the message, the month's theme, Sunday lessons and
-  sacrament meeting talks, the ward and stake events (the same lines as *Coming up*) and "The
-  Bishopric". Nothing is sent from the app. The ward's code comes from the `stake_ward` setting.
-  - **Monthly topics:** open the bishopric's topics document in Google Docs, select all, copy and
-    paste it under *Monthly topics*, then **Read topics** and **Save**. Each month starts with a line
-    like `December — theme`; lessons are `1st Sunday Lesson: title — speaker — Dec 6, 2026` (or
-    `3rd Sunday: Christmas Program — note — Dec 20, 2026`); talks follow `Sacrament Talks:` as
-    `title — speaker`. Lines it can't read are listed, not guessed. Pasting months already saved
-    replaces them (the old rows are marked void).
+  month), edit the message, then copy the subject (*MS6 Bishopric Message - December*) and the text
+  into the ward's email. The text is: the message, the ward and stake events (the same lines as
+  *Coming up*), the month's theme and Sunday lessons, and "The Bishopric". Sacrament meeting talks
+  are not listed. The message starts as a suggested one of about 50 words, from the theme and the
+  first lesson's talk; edit it or add a quote (the app reads no talk text). **Use the suggested
+  message** puts it back. Nothing is sent from the app. The ward's code comes from the `stake_ward`
+  setting.
+- **Monthly topics** (on the **Import** screen, under the member list): open the bishopric's topics
+  document in Google Docs, select all, copy and paste it there, then **Read topics** and **Save**.
+  Each month starts with a line like `December — theme`; lessons are
+  `1st Sunday Lesson: title — speaker — Dec 6, 2026` (or `3rd Sunday: Christmas Program — note —
+  Dec 20, 2026`); talks follow `Sacrament Talks:` as `title — speaker`. Lines it can't read are
+  listed, not guessed. Pasting months already saved replaces them (the old rows are marked void).
 
 **The stake Sheet (Settings).** Paste the link to the stake's yearly Sheet and how it writes your
 ward (for example MS6), then **Save for everyone**. Both are saved in the planner Sheet's Settings

@@ -1,18 +1,20 @@
 // Monthly update email (Calendar > "<ward> Update Email"), for the bishopric only (no `limited`
-// flag). It drafts the ward email for a month: the bishopric's short message, the month's topics
-// (theme, Sunday lessons, sacrament meeting talks) and the ward and stake calendar items. The app
-// sends nothing: the subject and the text are copied into the ward's own email.
-// The topics come from the bishopric's topics document, pasted here once per batch of months and
-// saved in the Sheet's Topics tab. Pasting months again replaces those months (old rows marked void).
+// flag). It drafts the ward email for a month: a short message (a suggested one to start from), the
+// ward and stake calendar items, and the month's theme and Sunday lessons. The app sends nothing:
+// the subject and the text are copied into the ward's own email.
+// The topics come from the bishopric's topics document, pasted on the Import screen (Monthly topics,
+// under the member list) and saved in the Sheet's Topics tab. Pasting months again replaces those
+// months (old rows marked void).
 
 import { addMonths } from '../dates.js';
 import { makeId } from '../members.js';
 import { h, add, clear, field, select, busy, toast } from '../ui.js';
 import { calendarItems } from './calendar-logic.js';
 import { stakeId, stakeData, loadStake, wardNames, monthEnd } from './calendar.js';
-import { TOPIC_COLUMNS, parseTopics, topicRows, topicsFor, topicMonths, monthLabel, defaultEmailMonth, emailDraft } from './email-logic.js';
+import { TOPIC_COLUMNS, parseTopics, topicRows, topicsFor, topicMonths, monthLabel, defaultEmailMonth, emailDraft, suggestedMessage, wordCount } from './email-logic.js';
 
-const view = { month: '', message: '', paste: '' };
+// messages: what the bishopric typed, per month, kept while the app is open.
+const view = { month: '', messages: {}, paste: '' };
 
 function wardCode(ctx) { return wardNames(ctx)[0] || ''; }
 function emailLabel(ctx) { return `${wardCode(ctx) ? `${wardCode(ctx)} ` : ''}Update Email`; }
@@ -37,58 +39,62 @@ function renderEmail(root, ctx) {
   const monthSel = select(months.map((m) => ({ value: m, label: monthLabel(m) })), view.month, { 'aria-label': 'Email month' });
   monthSel.addEventListener('change', () => { view.month = monthSel.value; ctx.refresh(); });
 
-  const message = h('textarea', { rows: 4, 'aria-label': 'Short message', placeholder: 'A short message from the bishopric (it goes at the top)' });
-  message.value = view.message;
+  const topics = topicsFor(topicRowsAll, view.month);
+  const suggestion = suggestedMessage(view.month, topics);
+  const message = h('textarea', { rows: 5, 'aria-label': 'Short message', placeholder: 'A short message from the bishopric (it goes at the top)' });
+  message.value = view.messages[view.month] ?? suggestion;
+  const words = h('span', { class: 'hint' });
   const out = h('div');
-  message.addEventListener('input', () => { view.message = message.value; draw(); });
+  message.addEventListener('input', () => { view.messages[view.month] = message.value; draw(); });
+  const reset = h('button', { class: 'small secondary', text: 'Use the suggested message', disabled: !suggestion });
+  reset.addEventListener('click', () => { delete view.messages[view.month]; message.value = suggestion; draw(); });
 
   // The stake calendar is read the same way as on the Calendar screen.
   let stakeNote = null;
   if (stakeId(ctx) && !stakeData(ctx)) { loadStake(ctx); stakeNote = h('p', { class: 'summary', text: 'Reading the stake Sheet… stake events will appear when it is read.' }); }
 
   add(root,
-    h('p', { class: 'hint', text: 'A draft of the monthly email to the ward. Pick the month, write a short message, then copy the subject and the text into your email. Nothing is sent from here.' }),
+    h('p', { class: 'hint', text: 'A draft of the monthly email to the ward. Pick the month, edit the message, then copy the subject and the text into your email. Nothing is sent from here.' }),
     h('div', { class: 'toolbar' }, field('Month', monthSel)),
+    topics ? null : h('p', { class: 'error' }, `No topics saved for ${monthLabel(view.month)}. Add them on the `, h('a', { href: '#import', text: 'Import screen' }), ' (Monthly topics).'),
     field('Short message', message),
+    h('div', { class: 'toolbar' }, reset, words),
     stakeNote,
-    out,
-    topicsSection(ctx, topicRowsAll));
+    out);
   draw();
 
   function draw() {
     clear(out);
+    const n = wordCount(message.value);
+    words.textContent = `${n} ${n === 1 ? 'word' : 'words'}`;
     const [y, m] = view.month.split('-').map(Number);
-    const from = `${view.month}-01`;
-    const items = calendarItems({ from, to: monthEnd(y, m), stake: stakeData(ctx), events: ctx.store.records('Events') });
-    const topics = topicsFor(topicRowsAll, view.month);
-    const draft = emailDraft({ ward: wardCode(ctx), month: view.month, message: view.message, topics, items });
+    const items = calendarItems({ from: `${view.month}-01`, to: monthEnd(y, m), stake: stakeData(ctx), events: ctx.store.records('Events') });
+    const draft = emailDraft({ ward: wardCode(ctx), month: view.month, message: message.value, topics, items });
     const subject = h('input', { type: 'text', readonly: true, value: draft.subject, 'aria-label': 'Email subject' });
     const body = h('textarea', { readonly: true, rows: Math.min(40, Math.max(8, Math.round(draft.body.split('\n').length * 1.6))), 'aria-label': 'Email text' });
     body.value = draft.body;
     add(out,
-      topics ? null : h('p', { class: 'error', text: `No topics saved for ${monthLabel(view.month)}. Paste the topics document under "Monthly topics" below.` }),
       h('div', { class: 'email-line' }, field('Subject', subject), copyButton('Copy subject', () => draft.subject, 'subject')),
       field('Email text', body),
       h('div', { class: 'toolbar' }, copyButton('Copy email text', () => draft.body, 'email text')));
   }
 }
 
-// Paste the topics document, check what was read, save it.
-function topicsSection(ctx, rows) {
+// Import screen, under the member list: paste the topics document, check what was read, save it.
+function topicsImport(ctx) {
+  const rows = ctx.store.records('Topics');
   const saved = topicMonths(rows);
-  const det = h('details', { class: 'panel' });
-  det.open = !saved.length || Boolean(view.paste);
   const box = h('textarea', { rows: 6, 'aria-label': 'Topics document text', placeholder: 'Paste the whole topics document here' });
   box.value = view.paste;
   const result = h('div');
-  const read = h('button', { class: 'secondary', text: 'Read topics' });
+  const read = h('button', { text: 'Read topics' });
   read.addEventListener('click', () => { view.paste = box.value; show(); });
-  add(det,
-    h('summary', { text: saved.length ? `Monthly topics: ${monthLabel(saved[0])} to ${monthLabel(saved[saved.length - 1])} saved` : 'Monthly topics: none saved yet' }),
-    h('p', { class: 'hint', text: 'Open the topics document in Google Docs, select all, copy, paste it here and tap Read topics. Months already saved are replaced by the new ones.' }),
+  const section = h('section', { class: 'sub' },
+    h('h3', { text: 'Monthly topics' }),
+    h('p', { class: 'hint', text: `${saved.length ? `Saved: ${monthLabel(saved[0])} to ${monthLabel(saved[saved.length - 1])}. ` : 'None saved yet. '}For the monthly update email. Open the bishopric's topics document in Google Docs, select all, copy, paste it here and tap Read topics. Months already saved are replaced by the new ones.` }),
     box, h('div', { class: 'toolbar' }, read), result);
   if (view.paste) show();
-  return det;
+  return [section];
 
   function show() {
     clear(result);
@@ -116,4 +122,5 @@ export const emailFeature = {
   group: 'Calendar',
   tables: { Topics: { columns: TOPIC_COLUMNS, dates: ['date'] } },
   views: [{ id: 'email', label: emailLabel, title: (ctx) => `${emailLabel(ctx)}: ${monthLabel(view.month || defaultEmailMonth(ctx.today()))}`, render: renderEmail }],
+  importSections: topicsImport,
 };
