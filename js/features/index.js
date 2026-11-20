@@ -5,5 +5,6 @@ import { speakers } from './speakers.js';
 import { programFeature } from './program.js';
 import { callingsFeature } from './callings.js';
 import { calendarFeature } from './calendar.js';
+import { emailFeature } from './email.js';
 
-export const FEATURES = [speakers, programFeature, callingsFeature, calendarFeature];
+export const FEATURES = [speakers, programFeature, callingsFeature, calendarFeature, emailFeature];

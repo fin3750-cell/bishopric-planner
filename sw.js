@@ -3,7 +3,7 @@
 // Every request asks the server whether the file changed (cache: 'no-cache'). GitHub Pages lets
 // browsers reuse files for 10 minutes; without this a new version could take that long to appear.
 // When nothing changed the answer is a tiny "not modified".
-const CACHE = 'planner-v0.12.2';
+const CACHE = 'planner-v0.13.0';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './config.js', './manifest.webmanifest',
   './js/auth.js', './js/dates.js', './js/members.js', './js/settings.js', './js/sheets.js', './js/store.js', './js/ui.js',
@@ -12,6 +12,7 @@ const SHELL = [
   './js/features/callings-orgchart.js', './js/features/callings-lcr.js', './js/features/callings-import.js',
   './js/features/calendar.js', './js/features/calendar-logic.js', './js/features/stake-parse.js',
   './js/features/program.js', './js/features/program-parse.js',
+  './js/features/email.js', './js/features/email-logic.js',
   './js/views/members.js', './js/views/import.js', './js/views/settings.js',
   './privacy/', './terms/',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',

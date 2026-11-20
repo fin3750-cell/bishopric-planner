@@ -27,6 +27,9 @@ const VIEWS = [
 // access 'full', or 'limited' (only the screens marked limited: true; see identify()).
 const state = { settings: loadSettings(), store: null, authReady: null, loading: false, me: { email: '', person: null, access: 'full', limited: null } };
 
+// A view's label or title can be a function of ctx (the email screen's label carries the ward's code).
+function textOf(v) { return typeof v === 'function' ? v(ctx) : v; }
+
 function visibleViews() { return state.store && state.me.access === 'limited' ? VIEWS.filter((v) => v.limited) : VIEWS; }
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -170,8 +173,9 @@ function renderHeader() {
   btn.textContent = state.store ? 'Sign in again' : 'Sign in';
 }
 
+// The app opens on the Calendar (for the bishopric and limited access alike) unless the address names a screen.
 function currentView() {
-  const id = (location.hash || '#ask').slice(1);
+  const id = (location.hash || '#calendar').slice(1);
   const views = visibleViews();
   return views.find((v) => v.id === id) || views[0];
 }
@@ -190,11 +194,11 @@ function render() {
   const siblings = views.filter((v) => v.group === view.group);
   if (siblings.length > 1) {
     nav.append(h('div', { class: 'tab-row sub-tabs' }, siblings.map((v) =>
-      h('a', { href: `#${v.id}`, class: v.id === view.id ? 'tab active' : 'tab', 'aria-current': v.id === view.id ? 'page' : false, text: v.label }))));
+      h('a', { href: `#${v.id}`, class: v.id === view.id ? 'tab active' : 'tab', 'aria-current': v.id === view.id ? 'page' : false, text: textOf(v.label) }))));
   }
   renderHeader();
   const main = clear(document.getElementById('view'));
-  main.append(h('h2', { class: 'view-title', text: view.title || view.label }));
+  main.append(h('h2', { class: 'view-title', text: textOf(view.title || view.label) }));
   if (view.needsData && !state.store) {
     if (state.loading) { main.append(h('p', { class: 'summary', text: 'Loading the Sheet…' })); return; }
     if (!state.settings.sheetId || !state.settings.clientId) {

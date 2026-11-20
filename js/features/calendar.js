@@ -22,10 +22,10 @@ const view = { months: 6, otherWards: false, range: 'month' };
 
 const stake = { id: '', title: '', tabs: null, error: '', loadedAt: '', loading: null };
 
-function stakeId(ctx) { return spreadsheetIdFrom(ctx.shared.get('stake_sheet')); }
-function wardNames(ctx) { return ctx.shared.get('stake_ward').split(',').map((s) => s.trim()).filter(Boolean); }
+export function stakeId(ctx) { return spreadsheetIdFrom(ctx.shared.get('stake_sheet')); }
+export function wardNames(ctx) { return ctx.shared.get('stake_ward').split(',').map((s) => s.trim()).filter(Boolean); }
 
-function loadStake(ctx, force = false) {
+export function loadStake(ctx, force = false) {
   const id = stakeId(ctx);
   if (!id || stake.loading) return;
   if (!force && stake.id === id && (stake.tabs || stake.error)) return;
@@ -45,7 +45,7 @@ function loadStake(ctx, force = false) {
 }
 
 // The parsed stake Sheet for this ward, or null while loading / when there is none.
-function stakeData(ctx) {
+export function stakeData(ctx) {
   if (!stakeId(ctx) || stake.id !== stakeId(ctx) || !stake.tabs) return null;
   return readStakeSheet(stake.tabs, wardNames(ctx));
 }
@@ -74,7 +74,7 @@ function stakeStatus(ctx) {
 // ---------- Calendar screen ----------
 
 function monthStart(iso) { return `${iso.slice(0, 7)}-01`; }
-function monthEnd(y, m) { return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); }
+export function monthEnd(y, m) { return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); }
 function dayLabel(iso) { const d = new Date(`${iso}T00:00:00Z`); return `${DAYS[d.getUTCDay()]} ${formatDate(iso)}`; }
 
 const BADGE = {
@@ -92,32 +92,39 @@ function itemRow(ctx, it) {
   } else {
     body = h('span', {}, h('strong', { text: it.title }), it.who ? ` · ${it.who}` : '');
   }
-  let remove = null;
-  // The limited app may remove only the items its person added.
+  let actions = null;
+  // Items added by hand (or from a WardBullet program) can be fixed or removed. The limited app
+  // may change only the items its person added. Stake events come from the stake's Sheet: fixed there.
   if (it.kind === 'event' && (!ctx.limited() || String(it.ref.entered_by || '') === String(ctx.who() || ''))) {
-    remove = h('button', { class: 'small secondary', text: 'Remove' });
+    const edit = h('button', { class: 'small secondary', text: 'Edit', onclick: () => eventDialog(ctx, it) });
+    const remove = h('button', { class: 'small secondary', text: 'Remove' });
     remove.addEventListener('click', () => {
       if (!window.confirm(`Remove "${it.title}" on ${formatDate(it.date)}? It stays in the Sheet, marked as removed.`)) return;
       busy(remove, async () => { await ctx.store.update('Events', [{ id: it.ref.id, fields: { void: true } }]); toast('Event removed'); ctx.refresh(); }).catch(() => {});
     });
+    actions = h('span', { class: 'cal-actions' }, edit, remove);
   }
   return h('li', { class: `row cal-item kind-${it.kind}` },
     h('span', { class: 'cal-main' }, h('span', { class: `badge ${cls}`, text: label }), time ? h('span', { class: 'cal-time', text: time }) : null, body,
       it.notes ? h('span', { class: 'note', text: it.notes }) : null),
-    remove);
+    actions);
 }
 
-function addEvent(ctx) {
-  openDialog('Add a calendar item', (close) => {
-    const date = h('input', { type: 'date', value: ctx.today(), 'aria-label': 'Event date' });
-    const time = h('input', { type: 'time', 'aria-label': 'Event time' });
-    const title = h('input', { type: 'text', placeholder: 'e.g. Ward Christmas party', 'aria-label': 'Event title' });
-    const notes = h('input', { type: 'text', placeholder: 'Optional', 'aria-label': 'Event notes' });
-    const save = h('button', { text: 'Add to calendar' });
+// Add a calendar item, or (with `it`, an item from calendarItems) fix one: the same row is changed
+// in place, found by its id; who added it and when stay as they were.
+function eventDialog(ctx, it = null) {
+  openDialog(it ? 'Edit calendar item' : 'Add a calendar item', (close) => {
+    const date = h('input', { type: 'date', value: it ? it.date : ctx.today(), 'aria-label': 'Event date' });
+    const time = h('input', { type: 'time', value: it ? it.time : '', 'aria-label': 'Event time' });
+    const title = h('input', { type: 'text', value: it ? it.title : '', placeholder: 'e.g. Ward Christmas party', 'aria-label': 'Event title' });
+    const notes = h('input', { type: 'text', value: it ? it.notes : '', placeholder: 'Optional', 'aria-label': 'Event notes' });
+    const save = h('button', { text: it ? 'Save changes' : 'Add to calendar' });
     save.addEventListener('click', () => busy(save, async () => {
       if (!date.value || !title.value.trim()) throw new Error('Enter the date and what it is.');
-      await ctx.store.add('Events', [{ id: makeId('ev'), date: date.value, time: time.value, title: title.value.trim(), notes: notes.value.trim(), entered_by: ctx.who(), entered_at: ctx.stamp() }]);
-      toast(`Added: ${title.value.trim()}, ${formatDate(date.value)}`);
+      const fields = { date: date.value, time: time.value, title: title.value.trim(), notes: notes.value.trim() };
+      if (it) await ctx.store.update('Events', [{ id: it.ref.id, fields }]);
+      else await ctx.store.add('Events', [{ id: makeId('ev'), ...fields, entered_by: ctx.who(), entered_at: ctx.stamp() }]);
+      toast(`${it ? 'Saved' : 'Added'}: ${fields.title}, ${formatDate(fields.date)}`);
       close(); ctx.refresh();
     }).catch(() => {}));
     return [field('Date', date), field('Time (optional)', time), field('What', title), field('Notes', notes), save];
@@ -169,7 +176,7 @@ function renderCalendar(root, ctx) {
   const other = h('input', { type: 'checkbox', checked: view.otherWards, 'aria-label': 'Show other wards\' stake events' });
   other.addEventListener('change', () => { view.otherWards = other.checked; ctx.refresh(); });
   add(root,
-    h('div', { class: 'toolbar' }, h('button', { text: 'Add item', onclick: () => addEvent(ctx) })),
+    h('div', { class: 'toolbar' }, h('button', { text: 'Add item', onclick: () => eventDialog(ctx) })),
     stakeStatus(ctx),
     comingUp(ctx, data),
     h('h3', { class: 'stage-head', text: 'Calendar' }),

@@ -18,9 +18,12 @@ export function renderImport(root, ctx) {
   const preview = h('div', {});
   const check = h('button', { text: 'Check list' });
   check.addEventListener('click', () => showPreview(preview, text.value, ctx));
-  root.append(
+  add(root,
+    h('h3', { text: 'Member list (LCR)' }),
     h('p', { class: 'hint', text: 'Do this every month or so. Open the Member List, copy all the text (or save it as a text file), and paste it here. You will see what changed before anything is saved.' }),
-    text, h('div', { class: 'toolbar' }, file, check), preview);
+    text, h('div', { class: 'toolbar' }, file, check), preview,
+    // Other imports from features, under the member list (Monthly topics for the update email).
+    ctx.features.flatMap((f) => (f.importSections ? f.importSections(ctx) : [])));
 }
 
 function showPreview(preview, raw, ctx) {
