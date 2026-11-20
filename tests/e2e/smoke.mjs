@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { createFakeSheet, FAKE_GIS } from './fake-google.mjs';
 import { STAKE_TABS } from '../fixtures/stake-tabs.mjs';
 import { AGENDA, ANNOUNCEMENTS } from '../fixtures/wardbullet.mjs';
+import { TOPICS_PLAIN, TOPICS_MD } from '../fixtures/topics.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const ROOT = process.cwd();
@@ -825,6 +826,7 @@ const pianist = sheet.tabs.Callings.find((r) => r[ch.indexOf('calling')] === 'Pr
 assert.equal(pianist[ch.indexOf('entered_by')], 'Juno Limited');
 await go('Calendar');
 assert.equal(await page.locator('#view .cal-item.kind-speakers').count(), 0, 'no speakers on the limited calendar');
+assert.deepEqual((await tabsShown())[1], ['Calendar', 'Stake'], 'no update email for limited access');
 await page.getByRole('button', { name: 'Add item' }).click();
 await page.getByLabel('Event date').fill('2026-11-29');
 await page.getByLabel('Event time').fill('19:00');
@@ -899,6 +901,47 @@ await page.getByText(/^Loaded \d+ members$/).waitFor();
 assert.equal(await page.textContent('#view .view-title'), 'Calendar', 'still on the Calendar after signing in');
 assert.equal(new URL(page.url()).hash, '', 'no screen in the address');
 step('privacy policy at privacy/ and terms of service at terms/, linked from the app; the app opens on the Calendar');
+
+// 30. Monthly update email (bishopric only): topics pasted and saved, a month's draft, copy; months replaced on a new paste
+assert.deepEqual((await tabsShown())[1], ['Calendar', 'Stake', 'EX6 Update Email']);
+await go('EX6 Update Email', 'EX6 Update Email: November 2026');   // the 16th: this month by default
+assert.ok((await page.textContent('#view')).includes('No topics saved for November 2026'));
+await page.getByLabel('Topics document text').fill(TOPICS_PLAIN);
+await page.getByRole('button', { name: 'Read topics' }).click();
+assert.ok((await page.textContent('#view')).includes('December 2026 · Light of the World (Example) · 3 Sundays, 2 sacrament talks'));
+await page.getByRole('button', { name: 'Save 3 months' }).click();
+await page.getByText('Saved topics for 3 months').waitFor();
+const topicHead = sheet.tabs.Topics[0];
+assert.equal(sheet.tabs.Topics.length, 13, 'header + 12 rows');
+await page.getByLabel('Email month').selectOption('2026-12');
+await page.locator('#view .view-title', { hasText: 'EX6 Update Email: December 2026' }).waitFor();
+await page.getByLabel('Short message').fill('Merry Christmas to every family.');
+assert.equal(await page.getByLabel('Email subject').inputValue(), 'EX6 Bishopric Message - December');
+const emailText = await page.getByLabel('Email text').inputValue();
+assert.ok(emailText.startsWith('Merry Christmas to every family.\n\nDecember theme: Light of the World (Example)\n\nSunday lessons\n- Sun, Dec 6: The Gospel Is for All — Ed Mock\n'), emailText);
+assert.ok(emailText.includes('Sacrament meeting talks\n- Light and Life — Gus Sample\n- Come unto Him — Ann Example'), emailText);
+assert.ok(emailText.includes('\nCalendar\n- Sun, Dec 6: Christmas Devotional\n- Thu, Dec 10, 6:00 PM: Ward Christmas party\n'), emailText);
+assert.ok(emailText.endsWith('\nThe Bishopric'));
+assert.ok(!/Fast Sunday|Speakers:/.test(emailText), 'no fast Sundays or speakers');
+await page.getByRole('button', { name: 'Copy email text' }).click();
+await page.getByText('Copied the email text').waitFor();
+assert.equal(await page.evaluate(() => navigator.clipboard.readText()), emailText);
+await page.getByRole('button', { name: 'Copy subject' }).click();
+await page.getByText('Copied the subject').waitFor();
+assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'EX6 Bishopric Message - December');
+await noSideScroll('update email');
+if (SHOTS) await page.screenshot({ path: `${SHOTS}/21-email.png`, fullPage: true });
+// A new paste of December replaces December only: old rows marked void, new rows added
+await page.locator('#view details summary', { hasText: 'Monthly topics' }).click();
+await page.getByLabel('Topics document text').fill(TOPICS_MD);
+await page.getByRole('button', { name: 'Read topics' }).click();
+await page.getByRole('button', { name: 'Save 1 month' }).click();
+await page.getByText('Saved topics for 1 month').waitFor();
+const live = (month) => sheet.tabs.Topics.slice(1).filter((r) => r[topicHead.indexOf('month')] === month && String(r[topicHead.indexOf('void')]).toUpperCase() !== 'TRUE');
+assert.deepEqual([live('2026-11').length, live('2026-12').length, live('2027-01').length], [5, 3, 2]);
+assert.ok((await page.getByLabel('Email text').inputValue()).includes('- Sun, Dec 6: The Gospel Is for All! — Ed Mock'));
+assert.equal(await page.getByLabel('Short message').inputValue(), 'Merry Christmas to every family.', 'the message is kept');
+step('monthly update email: topics pasted and saved, December draft with message, lessons, talks and calendar; copied; a month replaced');
 
 assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
 step('no browser errors');

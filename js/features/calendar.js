@@ -22,10 +22,10 @@ const view = { months: 6, otherWards: false, range: 'month' };
 
 const stake = { id: '', title: '', tabs: null, error: '', loadedAt: '', loading: null };
 
-function stakeId(ctx) { return spreadsheetIdFrom(ctx.shared.get('stake_sheet')); }
-function wardNames(ctx) { return ctx.shared.get('stake_ward').split(',').map((s) => s.trim()).filter(Boolean); }
+export function stakeId(ctx) { return spreadsheetIdFrom(ctx.shared.get('stake_sheet')); }
+export function wardNames(ctx) { return ctx.shared.get('stake_ward').split(',').map((s) => s.trim()).filter(Boolean); }
 
-function loadStake(ctx, force = false) {
+export function loadStake(ctx, force = false) {
   const id = stakeId(ctx);
   if (!id || stake.loading) return;
   if (!force && stake.id === id && (stake.tabs || stake.error)) return;
@@ -45,7 +45,7 @@ function loadStake(ctx, force = false) {
 }
 
 // The parsed stake Sheet for this ward, or null while loading / when there is none.
-function stakeData(ctx) {
+export function stakeData(ctx) {
   if (!stakeId(ctx) || stake.id !== stakeId(ctx) || !stake.tabs) return null;
   return readStakeSheet(stake.tabs, wardNames(ctx));
 }
@@ -74,7 +74,7 @@ function stakeStatus(ctx) {
 // ---------- Calendar screen ----------
 
 function monthStart(iso) { return `${iso.slice(0, 7)}-01`; }
-function monthEnd(y, m) { return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); }
+export function monthEnd(y, m) { return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); }
 function dayLabel(iso) { const d = new Date(`${iso}T00:00:00Z`); return `${DAYS[d.getUTCDay()]} ${formatDate(iso)}`; }
 
 const BADGE = {

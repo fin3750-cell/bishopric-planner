@@ -123,6 +123,18 @@ about a release can each be assigned to someone's initials.
   the months each one speaks in your ward are marked), stake organization callings and bishops,
   with phone numbers and emails to tap. These come from the stake Sheet each time; nothing from it
   is saved in the planner Sheet.
+- **<ward> Update Email** (for example *MS6 Update Email*; bishopric only, not in the limited app):
+  a draft of the monthly email to the ward. Pick the month (this month until the 19th, then next
+  month), write a short message, then copy the subject (*MS6 Bishopric Message - December*) and the
+  text into the ward's email. The text has the message, the month's theme, Sunday lessons and
+  sacrament meeting talks, the ward and stake events (the same lines as *Coming up*) and "The
+  Bishopric". Nothing is sent from the app. The ward's code comes from the `stake_ward` setting.
+  - **Monthly topics:** open the bishopric's topics document in Google Docs, select all, copy and
+    paste it under *Monthly topics*, then **Read topics** and **Save**. Each month starts with a line
+    like `December — theme`; lessons are `1st Sunday Lesson: title — speaker — Dec 6, 2026` (or
+    `3rd Sunday: Christmas Program — note — Dec 20, 2026`); talks follow `Sacrament Talks:` as
+    `title — speaker`. Lines it can't read are listed, not guessed. Pasting months already saved
+    replaces them (the old rows are marked void).
 
 **The stake Sheet (Settings).** Paste the link to the stake's yearly Sheet and how it writes your
 ward (for example MS6), then **Save for everyone**. Both are saved in the planner Sheet's Settings
@@ -269,6 +281,7 @@ has 26, A to Z), the app adds columns first, because Google refuses to write pas
 | Callings | id, member_id, member_name, organization, calling, proposed_on, approved_on, approved_by (who recorded the bishop's decision), not_approved_on, extend_by, extended_on, accepted_on, declined_on, sustained_on, set_apart_by, set_apart_on, record_by, recorded_on, release_proposed_on, release_by, release_informed_on, released_on, release_record_by, release_recorded_on, source, notes, entered_by, entered_at, void |
 | Tasks | id, description, assigned_to, due_on, done_on, done_by, entered_by, entered_at, void |
 | Events | id, date, time, title, notes, entered_by, entered_at, void (events added on the Calendar) |
+| Topics | id, month (YYYY-MM), theme, n (order in the document), kind (lesson or talk), sunday, date, title, speaker, note, entered_by, entered_at, void: the monthly topics for the update email |
 | Access | id, name, email (Google account), active (FALSE = removed): people who see the limited app |
 | Settings | id (the setting's name), value, updated_by, updated_at: settings shared by everyone, such as `stake_sheet` (the stake Sheet's link), `stake_ward` and `record_by` (who records callings in LCR) |
 
