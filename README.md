@@ -110,7 +110,8 @@ about a release can each be assigned to someone's initials.
   speakers, to-dos and other wards' events are left out, and your ward's code is left off its own
   events ("Ward Conference", not "MS6 - Ward Conference").
 - **Calendar:** one list by month, from the start of this month, six months at a time:
-  - items you add by hand (**Add item**, saved in the Sheet's Events tab). **Edit** fixes one in
+  - items you add by hand (**Add item**: date, optional time, what, optional location and notes;
+    saved in the Sheet's Events tab). **Edit** fixes one in
     place (same row); **Remove** marks it void. Limited access can edit or remove only its own;
   - the stake calendar, read from the stake's own Sheet. Stake-wide events and your ward's show;
     other wards' are hidden unless you check **Other wards' stake events**;
@@ -283,7 +284,7 @@ has 26, A to Z), the app adds columns first, because Google refuses to write pas
 | Bishopric | id, initials, name, role, member_id, active, email (Google account, linked at first sign-in) |
 | Callings | id, member_id, member_name, organization, calling, proposed_on, approved_on, approved_by (who recorded the bishop's decision), not_approved_on, extend_by, extended_on, accepted_on, declined_on, sustained_on, set_apart_by, set_apart_on, record_by, recorded_on, release_proposed_on, release_by, release_informed_on, released_on, release_record_by, release_recorded_on, source, notes, entered_by, entered_at, void |
 | Tasks | id, description, assigned_to, due_on, done_on, done_by, entered_by, entered_at, void |
-| Events | id, date, time, title, notes, entered_by, entered_at, void (events added on the Calendar) |
+| Events | id, date, time, title, location (optional), notes, entered_by, entered_at, void (events added on the Calendar) |
 | Topics | id, month (YYYY-MM), theme, n (order in the document), kind (lesson or talk), sunday, date, title, speaker, note, entered_by, entered_at, void: the monthly topics for the update email |
 | Access | id, name, email (Google account), active (FALSE = removed): people who see the limited app |
 | Settings | id (the setting's name), value, updated_by, updated_at: settings shared by everyone, such as `stake_sheet` (the stake Sheet's link), `stake_ward` and `record_by` (who records callings in LCR) |

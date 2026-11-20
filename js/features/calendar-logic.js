@@ -6,7 +6,7 @@ import { addDays, addMonths } from '../dates.js';
 import { isTrue, displayName } from '../members.js';
 import { timeOf, hcVisits } from './stake-parse.js';
 
-export const EVENT_COLUMNS = ['id', 'date', 'time', 'title', 'notes', 'entered_by', 'entered_at', 'void'];
+export const EVENT_COLUMNS = ['id', 'date', 'time', 'title', 'location', 'notes', 'entered_by', 'entered_at', 'void'];
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -46,7 +46,7 @@ export function calendarItems({ from, to, events = [], stake = null, talks = [],
   const items = [];
   for (const e of events) {
     if (isTrue(e.void) || !inRange(e.date) || !String(e.title || '').trim()) continue;
-    items.push({ kind: 'event', date: e.date, time: timeOf(e.time), title: String(e.title).trim(), notes: String(e.notes || '').trim(), ref: e });
+    items.push({ kind: 'event', date: e.date, time: timeOf(e.time), title: String(e.title).trim(), location: String(e.location || '').trim(), notes: String(e.notes || '').trim(), ref: e });
   }
   const keys = stake ? stake.wardKeys || [] : [];
   for (const e of stake ? stake.events : []) {
@@ -136,7 +136,8 @@ export function comingUpText({ items, notes = [], include }) {
       const title = it.kind === 'ward' ? it.title.replace(/^[A-Z]{2,3}\s?\d?\s*-\s+/, '') : it.title;
       // Notes saying where an item came from ("From the WardBullet program of …") are not for the bulletin.
       const note = it.kind !== 'fast' && it.notes && !/^From the WardBullet program\b/i.test(it.notes) ? it.notes : '';
-      what = `${title}${note ? ` (${note})` : ''}`;
+      // "Ward Christmas Party, Stake Center (Bring a side dish)": the location only when one was entered.
+      what = `${title}${it.location ? `, ${it.location}` : ''}${note ? ` (${note})` : ''}`;
     }
     lines.push(`${when}: ${what}`);
   }
